@@ -1,17 +1,28 @@
 from flask import Flask
 from flask_socketio import SocketIO, emit
 import re
+from flask_sqlalchemy import SQLAlchemy
 import playlist
+from datetime import datetime, timedelta
+from uuid import uuid4
+from models import db, Song, Album, Artist 
+from flask_cors import CORS 
+
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///playlist.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app, resources={r"/*": {"origins": "*"}})
+db.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-current_playlist = playlist.Playlist(name='My Playlist', songs=["song1", "song2", "song3"])
+with app.app_context():
+    current_playlist = playlist.Playlist(name='My Playlist', songs=[song.name for song in Song.query.limit(5).all()]) 
 
 @app.route('/')
 def index():
     return "Chatbot backend is running."
-
+        
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
@@ -111,3 +122,4 @@ def handle_disconnect():
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
+
