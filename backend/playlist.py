@@ -5,6 +5,7 @@ class Playlist:
         self.name = name
         self.songs = []
         self.db_connection = db_connection
+        #Added test song
         self.songs.append(database.get_song_by_name('here comes the sun'))
         print(len(self.songs))
 

@@ -2,10 +2,7 @@ from dialoguekit.participant.agent import Agent
 from dialoguekit.core.annotated_utterance import AnnotatedUtterance
 from dialoguekit.core.utterance import Utterance
 from dialoguekit.participant.participant import DialogueParticipant
-import sqlite3
-from uuid import uuid4
 import re
-from datetime import datetime
 import database
 import playlist
 
@@ -35,10 +32,9 @@ class MusicBotAgent(Agent):
         return songs
     
     def get_song(self):
-        with sqlite3.connect('music.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT name FROM song LIMIT 1') 
-            song = cursor.fetchone()
+        cursor = self.db_connection.cursor()
+        cursor.execute('SELECT name FROM song LIMIT 1') 
+        song = cursor.fetchone()
         return song
     
     def welcome(self) -> None:
