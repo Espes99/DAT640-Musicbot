@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 from models import db, Song, Album, Artist 
 from flask_cors import CORS 
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
 
 app = Flask(__name__)
@@ -16,8 +18,47 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 db.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+""" def populate_music_data(db):
+    try:
+        # Create Artist objects
+        artist1 = Artist(id=uuid4(), name="The Beatles")
+        artist2 = Artist(id=uuid4(), name="Taylor Swift")
+        artist3 = Artist(id=uuid4(), name="Kendrick Lamar")
+        artist4 = Artist(id=uuid4(), name="Adele")
+        artist5 = Artist(id=uuid4(), name="Ed Sheeran")
+        
+        db.session.add_all([artist1, artist2, artist3, artist4, artist5])
+        
+        # Create Album objects and link them to artists
+        album1 = Album(id=uuid4(), name="Abbey Road", artist_id=artist1.id, release_year="1969")
+        album2 = Album(id=uuid4(), name="1989", artist_id=artist2.id, release_year="2014")
+        album3 = Album(id=uuid4(), name="To Pimp a Butterfly", artist_id=artist3.id, release_year="2015")
+        album4 = Album(id=uuid4(), name="25", artist_id=artist4.id, release_year="2015")
+        album5 = Album(id=uuid4(), name="Divide", artist_id=artist5.id, release_year="2017")
+        
+        db.session.add_all([album1, album2, album3, album4, album5])
+
+        # Create Song objects and link them to albums
+        song1 = Song(id=uuid4(), name="Come Together", album_id=album1.id, artist=artist1.name, length=datetime.strptime('00:04:20', '%H:%M:%S'))
+        song2 = Song(id=uuid4(), name="Style", album_id=album2.id, artist=artist2.name, length=datetime.strptime('00:03:51', '%H:%M:%S'))
+        song3 = Song(id=uuid4(), name="Alright", album_id=album3.id, artist=artist3.name, length=datetime.strptime('00:03:39', '%H:%M:%S'))
+        song4 = Song(id=uuid4(), name="Hello", album_id=album4.id, artist=artist4.name, length=datetime.strptime('00:04:55', '%H:%M:%S'))
+        song5 = Song(id=uuid4(), name="Shape of You", album_id=album5.id, artist=artist5.name, length=datetime.strptime('00:03:53', '%H:%M:%S'))
+        song6 = Song(id=uuid4(), name="Something", album_id=album1.id, artist=artist1.name, length=datetime.strptime('00:03:03', '%H:%M:%S'))
+        song7 = Song(id=uuid4(), name="Blank Space", album_id=album2.id, artist=artist2.name, length=datetime.strptime('00:03:51', '%H:%M:%S'))
+        
+        db.session.add_all([song1, song2, song3, song4, song5, song6, song7])
+
+        # Commit the changes to the database
+        db.session.commit()
+        print("Data successfully populated!")
+    except IntegrityError:
+        db.session.rollback()
+        print("Error occurred: Database constraint violation!") """
+
 with app.app_context():
-    current_playlist = playlist.Playlist(name='My Playlist', songs=[song.name for song in Song.query.limit(5).all()]) 
+    """ populate_music_data(db) """
+    current_playlist = playlist.Playlist(name='My Playlist', songs=[f"({song.name} - {song.album.name} - {song.artist} - {song.length.strftime('%H:%M:%S')})" for song in Song.query.limit(5).all()]) 
 
 @app.route('/')
 def index():
@@ -86,7 +127,17 @@ def handle_message(msg):
                         'text': f"Current playlist: {playlist_contents}"
                     }
                 })
-
+        
+    elif 'when' in msg_lower:
+        match = re.search(r"when was album (.+?) released\??$", msg_lower, re.IGNORECASE)
+        if match:
+            album_name = match.group(1).strip()
+            album = Album.query.filter(func.lower(Album.name) == album_name.lower()).first()
+            emit('message', {
+                'message': {
+                    'text': f"Album {album.name} was released in {album.release_year} by {album.artist}"
+                }
+            })
 
     elif 'clear playlist' in msg_lower:
         current_playlist.clear_playlist()
@@ -103,6 +154,7 @@ def handle_message(msg):
             "- Remove [song name] from the playlist\n"
             "- View playlist\n"
             "- Clear playlist\n"
+            "- When was album X released?\n"
             "- List commands"
         )
         emit('message', {

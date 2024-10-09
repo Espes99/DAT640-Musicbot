@@ -12,7 +12,7 @@ class Song(db.Model):
     album = db.relationship("Album", back_populates="songs")
 
     def __repr__(self):
-        return f"<Song {self.name}>"
+        return f"{self.name}"
 
 class Album(db.Model):
     id = db.Column(db.UUID, primary_key=True, default=uuid4)
@@ -23,7 +23,7 @@ class Album(db.Model):
     songs = db.relationship("Song", back_populates="album", lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Album {self.name}>"
+        return f"{self.name}"
 
 class Artist(db.Model):
     id = db.Column(db.UUID, primary_key=True, default=uuid4)
@@ -31,4 +31,4 @@ class Artist(db.Model):
     albums = db.relationship("Album", back_populates="artist", lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Artist {self.name}>"
+        return f"{self.name}"

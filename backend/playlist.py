@@ -20,7 +20,7 @@ class Playlist:
         
     def view_playlist(self):
         if self.songs:
-            return ' ' + ', '.join(self.songs)
+            return '\n' + '\n'.join(self.songs)
         else:
             return 'Your playlist is empty.'
         
