@@ -99,6 +99,41 @@ class MusicBotAgent(Agent):
             else:
                 song_response = "Playlist could not be cleared."
 
+#TODO add when, how and which keywords
+# elif 'when' in msg_lower:
+#         match = re.search(r"when was album (.+?) released\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             album_name = match.group(1).strip()
+#             album = Album.query.filter(func.lower(Album.name) == album_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Album {album.name} was released in {album.release_year} by {album.artist}"
+#                 }
+#             })
+    
+#     elif 'how' in msg_lower:
+#         match = re.search(r"how many albums has artist (.+?) released\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             artist_name = match.group(1).strip()
+#             artist = Artist.query.filter(func.lower(Artist.name) == artist_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Artist {artist.name} has released {len(artist.albums)} album(s) named {artist.albums}"
+#                 }
+#             })
+    
+#     elif 'which' in msg_lower:
+#         match = re.search(r"which album features song (.+?)\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             song_name = match.group(1).strip()
+#             song = Song.query.filter(func.lower(Song.name) == song_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Song {song.name} is featured in album {song.album}"
+#                 }
+#             })
+#End TODO add when, how and which keywords
+
         elif utterance_lower in ['help', 'list']:
             song_response = self.HELP_MESSAGE
 
