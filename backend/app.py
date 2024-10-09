@@ -1,4 +1,12 @@
-from flask import Flask
+from dialoguekit.platforms import FlaskSocketPlatform
+from sample_agents.parrot_agent import ParrotAgent
+
+from agent import MusicBotAgent
+
+platform = FlaskSocketPlatform(MusicBotAgent)
+platform.start()
+
+""" from flask import Flask
 from flask_socketio import SocketIO, emit
 import re
 from flask_sqlalchemy import SQLAlchemy
@@ -17,7 +25,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app, resources={r"/*": {"origins": "*"}})
 db.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
-
+ """
 """ def populate_music_data(db):
     try:
         # Create Artist objects
@@ -56,8 +64,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
         db.session.rollback()
         print("Error occurred: Database constraint violation!") """
 
-with app.app_context():
-    """ populate_music_data(db) """
+""" with app.app_context():
+    populate_music_data(db)
     current_playlist = playlist.Playlist(name='My Playlist', songs=[f"({song.name} - {song.album.name} - {song.artist} - {song.length.strftime('%H:%M:%S')})" for song in Song.query.limit(5).all()]) 
 
 @app.route('/')
@@ -199,3 +207,4 @@ def handle_disconnect():
 if __name__ == '__main__':
     socketio.run(app, debug=True)
 
+ """
