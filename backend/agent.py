@@ -2,53 +2,45 @@ from dialoguekit.participant.agent import Agent
 from dialoguekit.core.annotated_utterance import AnnotatedUtterance
 from dialoguekit.core.utterance import Utterance
 from dialoguekit.participant.participant import DialogueParticipant
-import sqlite3
-from uuid import uuid4
 import re
-from datetime import datetime
-
+import database
 import playlist
 
+db_connection = database.get_db_connection()
 class MusicBotAgent(Agent):
-
-    def __init__(self, agent_id: str):
+    def __init__(self, agent_id: str = "music-bot"):
         super().__init__(agent_id)
-        self.songs = self. get_all_songs()
-        self.current_playlist = playlist.Playlist(name='My Playlist', songs=[f"({song[0]} - {song[1]} - {song[2]})" for song in self.songs]) 
-    
-    def initialize_database(self):
-        """Initializes connection to SQLite database and populates data if empty."""
-        conn = sqlite3.connect('music.db')
-        return conn
+        self.db_connection = database.get_db_connection()
+        self.songs = self.get_all_songs()
+        self.current_playlist = playlist.Playlist(name='My Playlist', db_connection=db_connection)
+        self.HELP_MESSAGE = """Available commands:
+                            - 'add [song name]': Adds a song to the playlist.
+                            - 'remove [song name]': Removes a song from the playlist.
+                            - 'view playlist': Displays the current playlist.
+                            - 'clear playlist': Clears the entire playlist.
+                            - 'exit': Exits the chat."""
+
+
+    def get_all_songs(self, limit=2):
+        cursor = self.db_connection.cursor()
+        cursor.execute('SELECT name, artist, length FROM song LIMIT ?', (limit,))
+        rows = cursor.fetchall()
+        songs = []
+        for row in rows:
+            name, artist, length = row
+            songs.append((name, artist, length))
+        return songs
     
     def get_song(self):
-        with sqlite3.connect('music.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT name FROM song LIMIT 1') 
-            song = cursor.fetchone()
+        cursor = self.db_connection.cursor()
+        cursor.execute('SELECT name FROM song LIMIT 1') 
+        song = cursor.fetchone()
         return song
-    
-    def get_all_songs(self, limit=2):
-        with sqlite3.connect('music.db') as conn:
-            cursor = conn.cursor()
-            # Fetch all relevant song details
-            cursor.execute('SELECT name, artist, length FROM song LIMIT ?', (limit,))
-            rows = cursor.fetchall()
-
-            # Create Song objects from the fetched data
-            songs = []
-            for row in rows:
-                name, artist, length = row
-                length = datetime.strptime(length, '%H:%M:%S')
-                songs.append((name, artist, length))
-                
-        return songs
-
     
     def welcome(self) -> None:
         """Sends the agent's welcome message."""
         utterance = AnnotatedUtterance(
-            "Welcome to the chat! What can I do for you?",
+            "Welcome to the chat! What can I do for you? Type 'help' for more information.",
             participant=DialogueParticipant.AGENT,
         )
         self._dialogue_connector.register_agent_utterance(utterance)
@@ -72,75 +64,83 @@ class MusicBotAgent(Agent):
         """
 
         utterance_lower = utterance.text.lower()
+        song_response = "Sorry, I couldn't do anything about that."
+
         if utterance_lower == "exit":
             self.goodbye()
             return
+        
         elif 'view playlist' in utterance_lower:
             playlist_contents = self.current_playlist
             print("hello", playlist_contents.view_playlist())
             song_response = playlist_contents.view_playlist()
             
-        #TODO ESPEN
-        """ if 'add' in msg_lower:
-        match = re.search(r"add ['\"]?(.+?)['\"]?(?: to the playlist)?$", msg_lower)
-        if match:
-            song_name = match.group(1)
-            if current_playlist.add_song(song_name):
-                emit('message', {
-                    'message':{
-                        'text': f"Added '{song_name}' to the playlist."}
-                    })
+        elif 'add' in utterance_lower:
+            match = re.search(r"add ['\"]?(.+?)['\"]?(?: to the playlist)?$", utterance_lower)
+            if match:
+                song_name = match.group(1)
+                if self.current_playlist.add_song(song_name):
+                    song_response = f"Added '{song_name}' to the playlist."
+                else:
+                    song_response = f"Unable to add '{song_name}' (Already in the playlist, or does not exist in database)."
+
+        elif 'remove' in utterance_lower:
+            match = re.search(r"remove ['\"]?(.+?)['\"]?(?: from the playlist)?$", utterance_lower)
+            if match:
+                song_name = match.group(1)
+                if self.current_playlist.remove_song(song_name):
+                    song_response = f"Removed '{song_name}' from the playlist."
+                else:
+                    song_response = f"'{song_name}' is not in the playlist."
+
+        elif 'clear playlist' in utterance_lower:
+            if self.current_playlist.clear_playlist():
+                song_response = "Playlist has been cleared."
             else:
-                emit('message', {
-                    'message':{
-                        'text': f"'{song_name}' already in the playlist."}
-                    })
-        else:
-            emit('message', {
-                'message':{ 
-                'text': "Please specify the song to add."}
-                }) """
-        """ elif 'remove' in msg_lower:
-        match = re.search(r"remove ['\"]?(.+?)['\"]?(?: from the playlist)?$", msg_lower)
-        if match:
-            song_name = match.group(1)
-            if current_playlist.remove_song(song_name):
-                emit('message', {
-                    'message':{
-                        'text': f"Removed '{song_name}' from the playlist."}
-                    })
-            else:
-                emit('message', {
-                    'message': {
-                        'text': f"'{song_name}' is not in the playlist."}
-                    })
-        else:
-            emit('message', {
-                'message': {
-                    'text': "Please specify the song to remove."}
-                }) """
+                song_response = "Playlist could not be cleared."
 
-        """ elif 'clear playlist' in msg_lower:
-        current_playlist.clear_playlist()
-        emit('message', {
-                    'message': {
-                        'text': "Playlist has been cleared."
-                    }
-                }) """
-        #END TODO ESPEN
+#TODO add when, how and which keywords
+# elif 'when' in msg_lower:
+#         match = re.search(r"when was album (.+?) released\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             album_name = match.group(1).strip()
+#             album = Album.query.filter(func.lower(Album.name) == album_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Album {album.name} was released in {album.release_year} by {album.artist}"
+#                 }
+#             })
+    
+#     elif 'how' in msg_lower:
+#         match = re.search(r"how many albums has artist (.+?) released\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             artist_name = match.group(1).strip()
+#             artist = Artist.query.filter(func.lower(Artist.name) == artist_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Artist {artist.name} has released {len(artist.albums)} album(s) named {artist.albums}"
+#                 }
+#             })
+    
+#     elif 'which' in msg_lower:
+#         match = re.search(r"which album features song (.+?)\??$", msg_lower, re.IGNORECASE)
+#         if match:
+#             song_name = match.group(1).strip()
+#             song = Song.query.filter(func.lower(Song.name) == song_name.lower()).first()
+#             emit('message', {
+#                 'message': {
+#                     'text': f"Song {song.name} is featured in album {song.album}"
+#                 }
+#             })
+#End TODO add when, how and which keywords
+
+        elif utterance_lower in ['help', 'list']:
+            song_response = self.HELP_MESSAGE
 
 
-        # Fetch an existing song from the database
-        """ existing_song = self.get_song()
-        
-        # If a song exists, reply with the song information; otherwise, give a default response
-        if existing_song:
-            song_response = f"(Parroting) {existing_song[0]}"
-        else:
-            song_response = "Sorry, I couldn't find any songs." """
-        
         response = AnnotatedUtterance(
             song_response,
             participant=DialogueParticipant.AGENT,
         )
+
         self._dialogue_connector.register_agent_utterance(response)

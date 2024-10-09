@@ -1,0 +1,43 @@
+.container {
+    text-align: center;
+    margin-top: 20px;
+  }
+  
+  .toggle-button {
+    background-color: #6200ee;
+    color: #ffffff;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 24px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  .toggle-button:hover {
+    background-color: #3700b3;
+  }
+  
+  .playlist {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 40px 20px;
+  }
+  
+  .song-card {
+    background-color: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .song-card h3 {
+    margin-top: 0;
+    color: #333333;
+  }
+  
+  .song-card p {
+    margin: 8px 0;
+    color: #666666;
+  }
+  
