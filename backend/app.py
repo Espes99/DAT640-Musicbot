@@ -72,12 +72,11 @@ def handle_connect():
             'text': "Welcome to the chat! What can I do for you?"
         }
     })
-
-
+    
 @socketio.on('message')
 def handle_message(msg):
     print("Got message: ", msg)
-    message_field = msg.get("message", "")  # Extract the "message" field with a default empty string
+    message_field = msg.get("message", "")
     msg_lower = message_field.lower()
 
     if 'add' in msg_lower:
@@ -121,6 +120,7 @@ def handle_message(msg):
                 })
 
     elif 'view playlist' in msg_lower or 'get' in msg_lower:
+        print("Got message: ", msg)
         playlist_contents = current_playlist.view_playlist()
         emit('message', {
                     'message': {
@@ -136,6 +136,28 @@ def handle_message(msg):
             emit('message', {
                 'message': {
                     'text': f"Album {album.name} was released in {album.release_year} by {album.artist}"
+                }
+            })
+    
+    elif 'how' in msg_lower:
+        match = re.search(r"how many albums has artist (.+?) released\??$", msg_lower, re.IGNORECASE)
+        if match:
+            artist_name = match.group(1).strip()
+            artist = Artist.query.filter(func.lower(Artist.name) == artist_name.lower()).first()
+            emit('message', {
+                'message': {
+                    'text': f"Artist {artist.name} has released {len(artist.albums)} album(s) named {artist.albums}"
+                }
+            })
+    
+    elif 'which' in msg_lower:
+        match = re.search(r"which album features song (.+?)\??$", msg_lower, re.IGNORECASE)
+        if match:
+            song_name = match.group(1).strip()
+            song = Song.query.filter(func.lower(Song.name) == song_name.lower()).first()
+            emit('message', {
+                'message': {
+                    'text': f"Song {song.name} is featured in album {song.album}"
                 }
             })
 
@@ -154,7 +176,9 @@ def handle_message(msg):
             "- Remove [song name] from the playlist\n"
             "- View playlist\n"
             "- Clear playlist\n"
-            "- When was album X released?\n"
+            "- When was album [album name] released?\n"
+            "- How many albums has artist [artist name] released?\n"
+            "- Which album features song [song name]?\n"
             "- List commands"
         )
         emit('message', {
