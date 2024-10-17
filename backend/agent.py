@@ -5,6 +5,8 @@ from dialoguekit.participant.participant import DialogueParticipant
 import re
 import database
 import playlist
+import sqlite3
+import os
 
 db_connection = database.get_db_connection()
 class MusicBotAgent(Agent):
@@ -22,20 +24,64 @@ class MusicBotAgent(Agent):
 
 
     def get_all_songs(self, limit=2):
-        cursor = self.db_connection.cursor()
-        cursor.execute('SELECT name, artist, length FROM song LIMIT ?', (limit,))
-        rows = cursor.fetchall()
-        songs = []
-        for row in rows:
-            name, artist, length = row
-            songs.append((name, artist, length))
-        return songs
+        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
+            cursor = connection.cursor()
+            cursor.execute('SELECT name, artist, length FROM song LIMIT ?', (limit,))
+            rows = cursor.fetchall()
+            songs = []
+            for row in rows:
+                name, artist, length = row
+                songs.append((name, artist, length))
+            return songs
     
     def get_song(self):
-        cursor = self.db_connection.cursor()
-        cursor.execute('SELECT name FROM song LIMIT 1') 
-        song = cursor.fetchone()
-        return song
+        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
+            cursor = connection.cursor()
+            cursor.execute('SELECT name FROM song LIMIT 1') 
+            song = cursor.fetchone()
+            return song
+    
+    def get_album_by_name(self, album_name):
+        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''
+                SELECT album.*, artist.name AS artist_name
+                FROM album
+                JOIN artist ON album.artist_id = artist.id
+                WHERE LOWER(album.name) = LOWER(?)
+            ''', (album_name,))
+            album = cursor.fetchone()
+            print("result:", album)
+            return album if album else None
+        
+    def get_albums_by_artist(self, artist_name):
+        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''
+            SELECT id FROM artist WHERE LOWER(name) = LOWER(?)
+            ''', (artist_name,))
+            artist = cursor.fetchone()
+            if artist:
+                artist_id = artist[0]
+                cursor.execute('''
+                    SELECT name FROM album WHERE artist_id = ?
+                ''', (artist_id,))
+                albums = cursor.fetchall()
+                return [album for album in albums]
+            else:
+                return []
+    
+    def get_albums_by_song(self, song_name):
+        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''
+                SELECT album.name 
+                FROM song
+                JOIN album ON song.album_id = album.id
+                WHERE LOWER(song.name) = LOWER(?);
+            ''', (song_name,))
+            album = cursor.fetchone()
+            return album
     
     def welcome(self) -> None:
         """Sends the agent's welcome message."""
@@ -65,7 +111,6 @@ class MusicBotAgent(Agent):
 
         utterance_lower = utterance.text.lower()
         song_response = "Sorry, I couldn't do anything about that."
-
         if utterance_lower == "exit":
             self.goodbye()
             return
@@ -99,45 +144,34 @@ class MusicBotAgent(Agent):
             else:
                 song_response = "Playlist could not be cleared."
 
-#TODO add when, how and which keywords
-# elif 'when' in msg_lower:
-#         match = re.search(r"when was album (.+?) released\??$", msg_lower, re.IGNORECASE)
-#         if match:
-#             album_name = match.group(1).strip()
-#             album = Album.query.filter(func.lower(Album.name) == album_name.lower()).first()
-#             emit('message', {
-#                 'message': {
-#                     'text': f"Album {album.name} was released in {album.release_year} by {album.artist}"
-#                 }
-#             })
-    
-#     elif 'how' in msg_lower:
-#         match = re.search(r"how many albums has artist (.+?) released\??$", msg_lower, re.IGNORECASE)
-#         if match:
-#             artist_name = match.group(1).strip()
-#             artist = Artist.query.filter(func.lower(Artist.name) == artist_name.lower()).first()
-#             emit('message', {
-#                 'message': {
-#                     'text': f"Artist {artist.name} has released {len(artist.albums)} album(s) named {artist.albums}"
-#                 }
-#             })
-    
-#     elif 'which' in msg_lower:
-#         match = re.search(r"which album features song (.+?)\??$", msg_lower, re.IGNORECASE)
-#         if match:
-#             song_name = match.group(1).strip()
-#             song = Song.query.filter(func.lower(Song.name) == song_name.lower()).first()
-#             emit('message', {
-#                 'message': {
-#                     'text': f"Song {song.name} is featured in album {song.album}"
-#                 }
-#             })
-#End TODO add when, how and which keywords
+        elif 'when' in utterance_lower:
+         match = re.search(r"when was album (.+?) released\??$", utterance_lower, re.IGNORECASE)
+         if match:
+             album_name = match.group(1).strip()
+             print("album_name", album_name)
+             album = self.get_album_by_name(album_name)
+             song_response = f"Album {album[1]} was released in {album[3]} by {album[4]}"
+             
+        elif 'how' in utterance_lower:
+         match = re.search(r"how many albums has artist (.+?) released\??$", utterance_lower, re.IGNORECASE)
+         if match:
+            artist_name = match.group(1).strip()
+            albums = self.get_albums_by_artist(artist_name)
+            if len(albums) == 1:
+                song_response = f"Artist {artist_name} has released 1 album named {albums[0][0]}"
+            else:
+                song_response = f"Artist {artist_name} has released {len(albums)} albums named {', '.join(albums)}"
+        
+        elif 'which' in utterance_lower:
+         match = re.search(r"which album features song (.+?)\??$", utterance_lower, re.IGNORECASE)
+         if match:
+            song_name = match.group(1).strip()
+            album = self.get_albums_by_song(song_name)
+            song_response = f"Song {song_name} is featured in album {album[0]}"
 
         elif utterance_lower in ['help', 'list']:
             song_response = self.HELP_MESSAGE
-
-
+        
         response = AnnotatedUtterance(
             song_response,
             participant=DialogueParticipant.AGENT,
