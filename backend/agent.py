@@ -36,83 +36,6 @@ class MusicBotAgent(Agent):
         self.used_commands = []
         self.current_song = None
 
-    def get_album_by_name(self, album_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT album.*, artist.name AS artist_name
-                FROM album
-                JOIN artist ON album.artist_id = artist.id
-                WHERE LOWER(album.name) = LOWER(?)
-            ''', (album_name,))
-            album = cursor.fetchone()
-            return album if album else None
-        
-    def get_albums_by_artist(self, artist_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-            SELECT id FROM artist WHERE LOWER(name) = LOWER(?)
-            ''', (artist_name,))
-            artist = cursor.fetchone()
-            if artist:
-                artist_id = artist[0]
-                cursor.execute('''
-                    SELECT name FROM album WHERE artist_id = ?
-                ''', (artist_id,))
-                albums = cursor.fetchall()
-                return [album for album in albums]
-            else:
-                return []
-
-    def get_albums_by_song(self, song_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT album.name 
-                FROM song
-                JOIN album ON song.album_id = album.id
-                WHERE LOWER(song.name) = LOWER(?);
-            ''', (song_name,))
-            album = cursor.fetchone()
-            return album if album else None
-        
-    def get_songs_from_album_name(self, album_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT song.name 
-                FROM song
-                JOIN album ON song.album_id = album.id
-                WHERE LOWER(album.name) = LOWER(?);
-            ''', (album_name,))
-            songs = cursor.fetchall()
-            return songs if len(songs) > 0 else None
-        
-    def get_genre_by_album_name(self, album_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT genre 
-                FROM album
-                WHERE LOWER(album.name) = LOWER(?);
-            ''', (album_name,))
-            genre = cursor.fetchone()
-            return genre if genre else None
-
-
-    def get_artist_by_song_name(self, song_name):
-        with sqlite3.connect(os.path.join('data', 'music.db')) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT artist 
-                FROM song
-                WHERE LOWER(song.name) = LOWER(?);
-            ''', (song_name,))
-            artist = cursor.fetchone()
-            return artist if artist else None
-
-
     def welcome(self) -> None:
         utterance = AnnotatedUtterance(
             "Welcome to the chat! What can I do for you? Type 'help' for more information.",
@@ -193,7 +116,7 @@ class MusicBotAgent(Agent):
             match = re.search(r"when was album (.+?) released\??$", utterance_lower, re.IGNORECASE)
             if match:
                 album_name = match.group(1).strip()
-                album = self.get_album_by_name(album_name)
+                album = database.get_album_by_name(album_name)
                 if album:
                     song_response = f"Album '{album[1]}' was released in {album[3]} by {album[4]}"
                 else:
@@ -204,7 +127,7 @@ class MusicBotAgent(Agent):
             match = re.search(r"how many albums has artist (.+?) released\??$", utterance_lower, re.IGNORECASE)
             if match:
                 artist_name = match.group(1).strip()
-                albums = self.get_albums_by_artist(artist_name)
+                albums = database.get_albums_by_artist(artist_name)
                 if len(albums) == 1:
                     song_response = f"Artist '{artist_name}' has released 1 album named '{albums[0][0]}'"
                 elif len(albums) > 1:
@@ -218,7 +141,7 @@ class MusicBotAgent(Agent):
             match = re.search(r"which album features song (.+?)\??$", utterance_lower, re.IGNORECASE)
             if match:
                 song_name = match.group(1).strip()
-                album = self.get_albums_by_song(song_name)
+                album = database.get_albums_by_song(song_name)
                 self.current_song = song_name
                 if album:
                     song_response = f"Song '{song_name}' is featured in album '{album[0]}'"
@@ -226,16 +149,11 @@ class MusicBotAgent(Agent):
                     song_response = f"Song '{song_name}' not found in any album."
                 self.used_commands.append('which album features song [song name]?')
 
-
-        elif utterance_lower in ['help', 'list']:
-            song_response = self.HELP_MESSAGE
-            self.used_commands.append('help')
-
         elif 'who is the artist of song' in utterance_lower:
             match = re.search(r"who is the artist of song ['\"]?(.+?)['\"]?\??$", utterance_lower, re.IGNORECASE)
             if match:
                 song_name = match.group(1).strip()
-                artist = self.get_artist_by_song_name(song_name)
+                artist = database.get_artist_by_song_name(song_name)
                 if artist:
                     song_response = f"The artist of '{song_name}' is {artist}."
                 else:
@@ -246,7 +164,7 @@ class MusicBotAgent(Agent):
             match = re.search(r"list all songs in album ['\"]?(.+?)['\"]?\.*$", utterance_lower, re.IGNORECASE)
             if match:
                 album_name = match.group(1).strip()
-                songs = self.get_songs_from_album_name(album_name)
+                songs = database.get_songs_from_album_name(album_name)
                 if songs:
                     song_list = "', '".join([song[0] for song in songs])
                     song_response = f"Songs in album '{album_name}': '{song_list}'."
@@ -258,13 +176,16 @@ class MusicBotAgent(Agent):
             match = re.search(r"what is the genre of album ['\"]?(.+?)['\"]?\??$", utterance_lower, re.IGNORECASE)
             if match:
                 album_name = match.group(1).strip()
-                genre = self.get_genre_by_album_name(album_name)
+                genre = database.get_genre_by_album_name(album_name)
                 if genre:
                     song_response = f"The genre of album '{album_name}' is {genre}."
                 else:
                     song_response = f"Genre for album '{album_name}' not found."
                 self.used_commands.append('what is the genre of album [album name]?')
 
+        elif utterance_lower in ['help', 'list']:
+            song_response = self.HELP_MESSAGE
+            self.used_commands.append('help')
 
         else:
             song_response = "I'm sorry, I didn't understand that command. Type 'help' to see the list of available commands."
@@ -283,13 +204,16 @@ class MusicBotAgent(Agent):
             )
             self._dialogue_connector.register_agent_utterance(response)
             self.current_song = None
-        else:  
-            unused_commands = self.get_unused_commands()
-            unused_formatted = self.format_commands(unused_commands)
-            
-            if unused_commands:
-                second_response = AnnotatedUtterance(
-                    unused_formatted,
-                    participant=DialogueParticipant.AGENT,
-                )
-                self._dialogue_connector.register_agent_utterance(second_response)
+        else:
+            if utterance_lower in ['help', 'list']:
+                return
+            else:
+                    unused_commands = self.get_unused_commands()
+                    unused_formatted = self.format_commands(unused_commands)
+                    
+                    if unused_commands:
+                        second_response = AnnotatedUtterance(
+                            unused_formatted,
+                            participant=DialogueParticipant.AGENT,
+                        )
+                        self._dialogue_connector.register_agent_utterance(second_response)
