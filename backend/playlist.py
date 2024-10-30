@@ -8,27 +8,27 @@ class Playlist:
         self.songs = database.populate_playlist()
         print(len(self.songs))
 
-    def add_song(self, song_name):
-        song = database.get_song_by_name(song_name)
+    def add_song(self, song_name, artist_name):
+        song = database.get_song_by_name(song_name, artist_name)
         if song:
             if song not in self.songs:
                 self.songs.append(song)
-                return True
+                return True, song
             else:
-                return False 
+                return False, song
         else:
-            return False
+            return False, song
         
-    def remove_song(self, song_name):
-        song = database.get_song_by_name(song_name)
+    def remove_song(self, song_name, artist_name):
+        song = database.get_song_by_name(song_name, artist_name)
         if song:
             if song in self.songs:
                 self.songs.remove(song)
-                return True
+                return True, song
             else:
-                return False
+                return False, song
         else:
-            return False
+            return False, song
         
     def view_playlist(self):
         if self.songs:

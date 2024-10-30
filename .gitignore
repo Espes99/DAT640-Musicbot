@@ -3,7 +3,8 @@ __pycache__/
 *.pyc
 venv/
 # Node.js
-
+backend/data/rel_data
+backend/dialogue_export
 # dependencies
 node_modules/
 build/
@@ -12,7 +13,6 @@ build/
 
 # testing
 /coverage
-
 # misc
 .DS_Store
 .env.local

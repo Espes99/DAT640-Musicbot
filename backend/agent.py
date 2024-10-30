@@ -7,6 +7,43 @@ import database
 import playlist
 import sqlite3
 import os
+from REL.mention_detection import MentionDetection
+from REL.utils import process_results
+from REL.entity_disambiguation import EntityDisambiguation
+
+wiki_version = "wiki_2014"  
+base_url = "data/rel_data"  
+
+
+mention_detection = MentionDetection(base_url, wiki_version)
+config = {"mode": "eval", "model_path": f"ed-{wiki_version}"}
+entity_disambiguation = EntityDisambiguation(base_url, wiki_version, config)
+
+
+def disambiguate_song_with_rel(song_name, artist_name=None):
+    text = f"{song_name} by {artist_name}" if artist_name else song_name
+    
+    # Prepare input for REL
+    input_text = {"song_query": (text, [])}
+    mentions, _ = mention_detection.find_mentions(input_text, mention_detection)
+
+    predictions, _ = entity_disambiguation.predict(mentions)
+    result = process_results(mentions, predictions, input_text)
+
+    disambiguated_songs = []
+    for mention, entity in result["song_query"]:
+        disambiguated_songs.append({
+            "song": mention[2],
+            "linked_entity": entity[0], 
+            "confidence": entity[1]  
+        })
+    
+
+    if not disambiguated_songs:
+        return database.get_song_by_name(song_name, artist_name)
+    
+    return disambiguated_songs
+
 
 db_connection = database.get_db_connection()
 
@@ -16,8 +53,8 @@ class MusicBotAgent(Agent):
         self.db_connection = database.get_db_connection()
         self.current_playlist = playlist.Playlist(name='My Playlist', db_connection=db_connection)
         self.available_commands = [
-            ("add [song name]", "Adds a song to the playlist."),
-            ("remove [song name]", "Removes a song from the playlist."),
+            ("add [song name] by [artist name]", "Adds a song to the playlist."),
+            ("remove [song name] by [artist name]", "Removes a song from the playlist."),
             ("view playlist", "Displays the current playlist."),
             ("clear playlist", "Clears the entire playlist."),
             ("when was album [album name] released?", "Returns the release date of the album."),
@@ -85,25 +122,58 @@ class MusicBotAgent(Agent):
             self.used_commands.append('view playlist')
             
         elif 'add' in utterance_lower:
-            match = re.search(r"add ['\"]?(.+?)['\"]?(?: to the playlist)?$", utterance_lower)
+            match = re.search(r"add ['\"]?(?P<song>.+?)['\"]?(?: by ['\"]?(?P<artist>.+?)['\"]?)?", utterance_lower)
             if match:
-                song_name = match.group(1)
-                if self.current_playlist.add_song(song_name):
-                    song_response = f"Added '{song_name}' to the playlist."
-                    self.current_song = song_name
+                song_name = match.group('song').strip()
+                artist_name = match.group('artist').strip() if match.group('artist') else None
+                
+                # Call REL disambiguation
+                disambiguated_songs = disambiguate_song_with_rel(song_name, artist_name)
+                
+                if len(disambiguated_songs) > 1:
+                    # Present options to user if multiple versions are found
+                    options = "\n".join([f"{idx+1}. {song['song']} ({song['linked_entity']}, Confidence: {song['confidence']})"
+                                        for idx, song in enumerate(disambiguated_songs)])
+                    song_response = f"Multiple matches found for '{song_name}'. Please choose:\n{options}"
+                elif disambiguated_songs:
+                    # If one match is found, add directly
+                    song = disambiguated_songs[0]
+                    hit, added_song = self.current_playlist.add_song(song["song"], artist_name)
+                    song_response = f"Added '{added_song.name}' by {added_song.artist} to the playlist."
                 else:
-                    song_response = f"Unable to add '{song_name}' (Already in the playlist, or does not exist in database)."
-            self.used_commands.append('add [song name]')
+                    song_response = f"No matches found for '{song_name}'."
+
+            self.used_commands.append('add [song name] by [artist name]')
+            
+        elif re.match(r'^\d+$', utterance_lower) and self.disambiguation_options:
+            choice_index = int(utterance_lower) - 1
+            if 0 <= choice_index < len(self.disambiguation_options):
+                selected_song = self.disambiguation_options[choice_index]
+                hit, added_song = self.current_playlist.add_song(selected_song["song"], selected_song["artist"])
+                song_response = f"Added '{added_song.name}' by {added_song.artist} to the playlist."
+            else:
+                song_response = "Invalid choice. Please try again."
+            self.disambiguation_options = None  
 
         elif 'remove' in utterance_lower:
-            match = re.search(r"remove ['\"]?(.+?)['\"]?(?: from the playlist)?$", utterance_lower)
+            match = re.search(
+                r"""remove\s+['"]?(?P<song>.+?)['"]?\s+
+                    (?:by\s+['"]?(?P<artist>.+?)['"]?)?
+                    (?:\s+to\s+the\s+playlist)?$""",
+                utterance_lower,
+                re.IGNORECASE | re.VERBOSE
+            )
             if match:
-                song_name = match.group(1)
-                if self.current_playlist.remove_song(song_name):
-                    song_response = f"Removed '{song_name}' from the playlist."
+                song_name = match.group('song').strip()
+                artist_name = match.group('artist').strip() if match.group('artist') else None
+                hit, song = self.current_playlist.remove_song(song_name, artist_name)
+                if hit:
+                    song_response = f"Removed '{song.name}' by {song.artist} from the playlist."
+                elif not hit and song != None:
+                    song_response = f"'{song.name}' by {song.artist} is not in the playlist."
                 else:
-                    song_response = f"'{song_name}' is not in the playlist."
-            self.used_commands.append('remove [song name]')
+                    song_response = f"Unable to remove '{song_name}' by {artist_name} from the playlist."
+            self.used_commands.append('remove [song name] by [artist name]')
 
         elif 'clear playlist' in utterance_lower:
             if self.current_playlist.clear_playlist():

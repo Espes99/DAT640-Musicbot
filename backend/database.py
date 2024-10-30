@@ -46,14 +46,14 @@ def initialize_database():
     ''')
 
 
-def get_song_by_name(song_name):
+def get_song_by_name(song_name, artist_name):
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
         SELECT * FROM song
-        WHERE LOWER(name) = LOWER(?)
-    ''', (song_name,))
+        WHERE LOWER(name) = LOWER(?) AND LOWER(artist) = LOWER(?)
+    ''', (song_name, artist_name))
 
     song_row = cursor.fetchone()
     conn.close()
@@ -88,7 +88,7 @@ def get_albums_by_artist(artist_name):
             SELECT name FROM album WHERE artist_id = ?
         ''', (artist_id,))
         albums = cursor.fetchall()
-        return [album[0] for album in albums]
+        return [album for album in albums]
     else:
         return []
 
