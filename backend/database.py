@@ -1,8 +1,10 @@
 import sqlite3
 import os
 import song 
+import musicbrainzngs
 
 DB_PATH = os.path.join('data', 'music.db')
+musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -15,7 +17,7 @@ def initialize_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS artist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL
+            name TEXT NOT NULL UNIQUE
         )
     ''')
 
@@ -25,7 +27,9 @@ def initialize_database():
             name TEXT NOT NULL,
             artist_id INTEGER NOT NULL,
             release_year INTEGER,
-            FOREIGN KEY(artist_id) REFERENCES artist(id)
+            genre TEXT,
+            FOREIGN KEY(artist_id) REFERENCES artist(id),
+            UNIQUE(name, artist_id)
         )
     ''')
 
@@ -36,7 +40,8 @@ def initialize_database():
             album_id INTEGER,
             artist TEXT NOT NULL,
             length TEXT NOT NULL,
-            FOREIGN KEY(album_id) REFERENCES album(id)
+            FOREIGN KEY(album_id) REFERENCES album(id),
+            UNIQUE(name, album_id, artist)
         )
     ''')
 
@@ -83,7 +88,7 @@ def get_albums_by_artist(artist_name):
             SELECT name FROM album WHERE artist_id = ?
         ''', (artist_id,))
         albums = cursor.fetchall()
-        return [album for album in albums]
+        return [album[0] for album in albums]
     else:
         return []
 
@@ -135,3 +140,89 @@ def get_artist_by_song_name(song_name):
     ''', (song_name,))
     artist = cursor.fetchone()
     return artist if artist else None
+
+def populate_playlist():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT * FROM song
+        ORDER BY RANDOM()
+        LIMIT 10
+    ''')
+
+    random_songs = cursor.fetchall()
+
+    listen = []
+    if len(random_songs) > 0:
+        for song_row in random_songs:
+            songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+            listen.append(songMapped)
+        return listen
+    return None
+
+
+def add_to_database(results, conn):
+    cursor = conn.cursor()
+
+    artists = {(result['artist'],) for result in results}
+
+    cursor.executemany('INSERT OR IGNORE INTO artist (name) VALUES (?)', artists)
+    
+    artist_ids =  { artist: cursor.execute('SELECT id FROM artist WHERE name = ?', (artist,)).fetchone()[0] for artist, in artists}
+
+    albums = {(result['album_name'], artist_ids[result['artist']], result['album_release_year'], result['album_genre'],) for result in results if result['artist'] in artist_ids}
+
+    cursor.executemany('INSERT OR IGNORE INTO album (name, artist_id, release_year, genre ) VALUES (?, ?, ?, ?)', albums)
+
+    album_ids = { (album_name, artist_id): cursor.execute('SELECT id FROM album WHERE name = ? AND artist_id = ?', (album_name, artist_id)).fetchone()[0] for album_name, artist_id, _, _ in albums}
+
+    songs = {(result['song_title'], album_ids.get((result['album_name'], artist_ids[result['artist']])), result['artist'], result['song_length'],) for result in results if (result['album_name'], artist_ids[result['artist']]) in album_ids}
+
+    cursor.executemany('INSERT OR IGNORE INTO song (name, album_id, artist, length ) VALUES (?, ?, ?, ?)', songs)
+
+    conn.commit()
+
+    amount_of_songs = cursor.execute('SELECT COUNT(*) FROM song').fetchone()[0]
+
+    return amount_of_songs
+
+def format_song_length(length):
+    if length is None:
+        return "Unknown Song Length"
+    
+    seconds = int(length) // 1000
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+    
+    return f"{minutes}:{remaining_seconds:02d}"
+
+def populate_database():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    database_amount = 0
+    offset = 0
+    while database_amount <= 1000000:
+        cursor.execute("SELECT COUNT(*) FROM song")
+        songs_in_database = cursor.fetchone()[0]
+        database_amount = songs_in_database
+        result = musicbrainzngs.search_recordings('i', limit=100, offset=offset)
+        formatted_results = [
+            {
+                'song_title': rec['title'] if 'title' in rec and rec['title'] else 'Unknown Song title',
+                'artist': rec['artist-credit'][0]['artist']['name'] if 'artist-credit' in rec else 'Unknown Artist',
+                'song_length': format_song_length(rec['length']) if 'length' in rec and rec['length'] else format_song_length(None),
+                'album_name': rec['release-list'][0]['title'] if 'release-list' in rec and rec['release-list'] else 'Unknown Album',
+                'album_release_year': rec['release-list'][0]['date'].split('-')[0] if 'release-list' in rec and 'date' in rec['release-list'][0] and rec['release-list'] else 'Unknown Release Date',
+                'album_genre': rec['tag-list'][0]['name'] if 'tag-list' in rec else 'Unknown Genre'
+            }
+            for rec in result['recording-list']
+        ]
+        amount = add_to_database(formatted_results, conn)
+        count = amount - songs_in_database
+        offset += 100
+        print(f'Currently {count} songs added to database. Now a total of {amount}/1000000 songs')
+
+if __name__ == '__main__':
+    initialize_database()
+    populate_database()

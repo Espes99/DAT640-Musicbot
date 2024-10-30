@@ -118,7 +118,7 @@ class MusicBotAgent(Agent):
                 album_name = match.group(1).strip()
                 album = database.get_album_by_name(album_name)
                 if album:
-                    song_response = f"Album '{album[1]}' was released in {album[3]} by {album[4]}"
+                    song_response = f"Album '{album[1]}' was released in {album[3]} by {album[5]}"
                 else:
                     song_response = f"Album '{album_name}' not found."
                 self.used_commands.append('when was album [album name] released?')
@@ -134,7 +134,7 @@ class MusicBotAgent(Agent):
                     album_names = "', '".join([album[0] for album in albums])
                     song_response = f"Artist '{artist_name}' has released {len(albums)} albums named '{album_names}'"
                 else:
-                    song_response = f"Artist '{artist_name}' has not released any albums."
+                    song_response = f"Artist '{artist_name}' has not released any albums according to our database."
                 self.used_commands.append('how many albums has artist [artist name] released?')
 
         elif 'which' in utterance_lower:
