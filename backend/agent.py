@@ -67,7 +67,7 @@ class MusicBotAgent(Agent):
                     SELECT name FROM album WHERE artist_id = ?
                 ''', (artist_id,))
                 albums = cursor.fetchall()
-                return [album for album in albums]
+                return [album[0] for album in albums]
             else:
                 return []
     
@@ -157,7 +157,10 @@ class MusicBotAgent(Agent):
          if match:
             artist_name = match.group(1).strip()
             albums = self.get_albums_by_artist(artist_name)
-            if len(albums) == 1:
+            print("PLAYLISTLENGTH", len(albums), albums)
+            if len(albums) == 0:
+                song_response = f"Artist {artist_name} has released no albums released according to our database."
+            elif len(albums) == 1:
                 song_response = f"Artist {artist_name} has released 1 album named {albums[0][0]}"
             else:
                 song_response = f"Artist {artist_name} has released {len(albums)} albums named {', '.join(albums)}"
