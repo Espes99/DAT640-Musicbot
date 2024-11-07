@@ -4,15 +4,7 @@ from ollama import *
 from langchain_ollama import ChatOllama
 import playlist
 import database
-from langchain_core.tools import tool
-from typing import Annotated
 
-@tool
-def view_playlist(tool_input: Annotated[None, "Just default for tools"]) -> Annotated[str, "Result"]:
-    """View the details of all songs in the playlist."""
-    print(tool_input)
-    return 'You displayed a playlist.'
-    
 # Database connection and Flask setup
 db_connection = database.get_db_connection()
 app = Flask(__name__)
@@ -20,16 +12,27 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Define tools
 playlist_instance = playlist.Playlist(name='My Playlist', db_connection=db_connection)
-tools = [view_playlist]
+tools = [playlist_instance.view_playlist]
 print("Tool details:", tools)
 prompt = """
+You are a music chatbot. You ONLY answer questions about songs, albums, or artists in the playlist or database.
+You have one tool called `view_playlist`. ALWAYS use this tool when the user asks to view or see the playlist.
+
+### Example Usage
+- User: "Show me the playlist."
+  - You must use the `view_playlist` tool.
+- User: "Can I see the playlist?"
+  - You must use the `view_playlist` tool.
+
+Do NOT generate any random text. If the input is not about the playlist, say: "Ask me any questions about a playlist."
 """
 
 # Mistral model setup
 mistral_model = ChatOllama(
     model='mistral',
-    num_ctx=8,
-    temperature=0.8,
+    num_ctx=4,
+    temperature=0.2,
+    system=prompt
 ).bind_tools(tools)
 
 @app.route('/')
@@ -50,7 +53,7 @@ def handle_message(msg):
 
     try:
         # Invoke the Mistral model
-        response = mistral_model.invoke(msg_lower)
+        response = mistral_model.invoke(message_field)
         print("Model response:", response)
         
         # Check if the response includes an attempt to use the tool

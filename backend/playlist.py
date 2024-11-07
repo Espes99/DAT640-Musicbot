@@ -1,4 +1,6 @@
+from typing import Annotated
 import database
+from langchain_core.tools import tool
 
 class Playlist:
     def __init__(self, name, db_connection):
@@ -6,7 +8,6 @@ class Playlist:
         self.songs = []
         self.db_connection = db_connection
         self.songs = database.populate_playlist()
-        print(len(self.songs))
 
     def add_song(self, song_name):
         song = database.get_song_by_name(song_name)
@@ -29,8 +30,10 @@ class Playlist:
                 return False
         else:
             return False
-        
+    
     def view_playlist(self):
+        """View the details of all songs in the playlist."""
+        print("In here!")
         if self.songs:
             playlist_details = []
             for song in self.songs:
