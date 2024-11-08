@@ -2,9 +2,14 @@ import sqlite3
 import os
 import song 
 import musicbrainzngs
+import unicodedata
 
 DB_PATH = os.path.join('data', 'music.db')
 musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
+
+def normalize_string(input_string):
+    # Normalize the string to remove special characters
+    return unicodedata.normalize('NFKD', input_string).encode('ASCII', 'ignore').decode('utf-8').lower()
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -46,14 +51,13 @@ def initialize_database():
     ''')
 
 
-def get_song_by_name(song_name):
+def get_song_by_name(song_name, artist_name):
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute('''
         SELECT * FROM song
-        WHERE LOWER(name) = LOWER(?)
-    ''', (song_name,))
+        WHERE LOWER(name) = LOWER(?) AND LOWER(artist) = LOWER(?)
+    ''', (song_name, artist_name))
 
     song_row = cursor.fetchone()
     conn.close()
