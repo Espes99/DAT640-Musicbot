@@ -200,7 +200,6 @@ Always at the end of each response, provide additional information about the ava
 
 Playlist now supports positional references! You can:
 - Remove songs by their position in the playlist (e.g., remove the first 3 songs).
-- Ask for details about a song by its position (e.g., "What is the 2nd song's release date?").
 - Remove the last song in the playlist.
 
 These new options will enhance your interaction with the playlist.
