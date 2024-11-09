@@ -48,3 +48,14 @@ class Playlist:
             return True
         else:
             return False
+        
+    def get_song_by_position(self, position: int):
+        if position < 0 or position >= len(self.songs):
+            return None
+        return self.songs[position]
+    
+    def remove_song_by_position(self, position: int):
+        if position < 0 or position >= len(self.songs):
+            return False
+        del self.songs[position]
+        return True
