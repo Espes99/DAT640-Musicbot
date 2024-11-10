@@ -78,9 +78,8 @@ class MusicBotAgent(Agent):
 
     def receive_utterance(self, utterance: Utterance) -> None:
         utterance_lower = utterance.text.lower()
-        song_response = "Sorry, I couldn't do anything about that."
         response = self.mistral_model.invoke(utterance_lower)
-        print(response)
+        song_response = response.content
         if utterance_lower == "exit":
             self.goodbye()
             return
@@ -96,9 +95,8 @@ class MusicBotAgent(Agent):
                         if tool.name == tool_name: 
                             result = tool.invoke(tool_input)
                             song_response = result
-                            return
-            song_response = response.content
-        response = AnnotatedUtterance(
+
+            response = AnnotatedUtterance(
             song_response,
             participant=DialogueParticipant.AGENT,
         )
