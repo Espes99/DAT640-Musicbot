@@ -9,6 +9,17 @@ class Playlist:
         self.db_connection = db_connection
         self.songs = database.populate_playlist()
 
+    def add_song_no_artist(self, song_name):
+        song = database.get_song_by_name(song_name)
+        if song:
+            if song not in self.songs:
+                self.songs.append(song)
+                return True, song
+            else:
+                return False, song
+        else:
+            return False, song
+        
     def add_song(self, song_name, artist_name):
         song = database.get_song_by_name(song_name, artist_name)
         if song:

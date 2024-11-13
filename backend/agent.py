@@ -35,26 +35,14 @@ These new options will enhance your interaction with the playlist.
 
 playlist_instance = playlist.Playlist(name='My Playlist', db_connection=db_connection)
 
-tools = [view_playlist,
-        add_to_playlist, 
-        remove_from_playlist, 
-        clear_the_playlist, 
-        when_album_released, 
-        how_albums_released_artist, 
-        which_album_has_song, 
-        which_artist_released_song, 
-        list_songs_album,
-        get_album_genre,
-        remove_first_n_songs,
-        remove_last_song,
-        get_song_by_position]
+tools = [view_playlist, add_to_playlist, add_song_without_specified_artist_playlist]
 
 class MusicBotAgent(Agent):
     def __init__(self, agent_id: str = "music-bot"):
         super().__init__(agent_id)
         
         self.mistral_model = ChatOllama(
-            model='mistral-nemo',
+            model='mistral',
             temperature=0.8,
             system=system_prompt
         ).bind_tools(tools)
@@ -79,6 +67,7 @@ class MusicBotAgent(Agent):
     def receive_utterance(self, utterance: Utterance) -> None:
         utterance_lower = utterance.text.lower()
         response = self.mistral_model.invoke(utterance_lower)
+        print("MODEL: ", response)
         song_response = response.content
         if utterance_lower == "exit":
             self.goodbye()
