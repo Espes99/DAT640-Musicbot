@@ -4,6 +4,9 @@ import os
 import song 
 import musicbrainzngs
 import unicodedata
+import re
+from unidecode import unidecode
+
 
 DB_PATH = os.path.join('data', 'music.db')
 musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
@@ -51,16 +54,55 @@ def initialize_database():
         )
     ''')
 
+def normalize_text(text):
+    # Normalize text to remove accents and convert to lowercase
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+    # Remove punctuation using regex
+    text = re.sub(r'[^\w\s]', '', text)
+    return text.lower()
+
+def drop_accents(text):
+    if text:
+        text = unidecode(text)
+        text = re.sub(r'[^\w\s]', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+    return text
+
+def get_song(song_name):
+    conn = get_db_connection()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT * FROM song
+        WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%'
+        LIMIT 5
+    ''', (song_name,))
+    
+    song_row = cursor.fetchall()
+    print("Heisa", song_row)
+    conn.close()
+    
+    if song_row:
+        songMapped = []
+        for songen in song_row:
+            songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+        return songMapped
+    return None
 
 def get_song_by_name(song_name, artist_name):
     conn = get_db_connection()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
+    print("artistname", drop_accents(artist_name))
+    print("songname", drop_accents(song_name))
     cursor.execute('''
         SELECT * FROM song
-        WHERE LOWER(name) = LOWER(?) AND LOWER(artist) = LOWER(?)
+        WHERE DROPACCENTS(LOWER(name)) = DROPACCENTS(LOWER(?)) AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
     ''', (song_name, artist_name))
-
     song_row = cursor.fetchone()
+    print("songrow", song_row)
     conn.close()
     if song_row:
         songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
