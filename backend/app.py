@@ -10,7 +10,7 @@ from typing import Annotated
 
 db_connection = database.get_db_connection()
 instance = playlist.Playlist(name='My Playlist', db_connection=db_connection)
-
+# recommended_songs_history = []
 @tool
 def view_playlist() -> Annotated[str, "Contents of the playlist"]:
     """View playlist"""
@@ -134,19 +134,33 @@ def get_song_by_position(position: Annotated[int, "Position of the song in the p
     else:
         return f"There is no song at position {position} in the playlist."
     
+@tool
+def recommend_music() -> Annotated[str, "Result"]:
+    """Recommend songs based on the current playlist."""
+    recommendations = playlist_instance.recommend_music()
+
+    if not recommendations:
+        return "I couldn't find any recommendations based on your playlist."
+    
+    return recommendations
+
 # @tool
-# def what_genre_of_song_by_position(position: Annotated[int, "Position of the song in the playlist (1-based)"]) -> Annotated[str, "Result"]:
-#     """Get duration of the song by its position."""
-#     song = instance.get_song_by_position(position - 1)  
-#     if song:
-#         song = instance.get_song_by_position(song.name)
-#         song_genre = database.get_genre_by_album_name(song.album)
-#         if song_genre:
-#             return f"The song '{song.name}' by {song.artist} has genre {song_genre}."
-#         else:
-#             return f"Genre for '{song.name}' by {song.artist} is unknown."
+# def show_recommended_history() -> Annotated[str, "Result"]:
+#     """Show the history of recommended songs."""
+#     return f'Recommended songs history: {", ".join(recommended_songs_history)}'
+
+# @tool
+# def add_recommended_song(position: Annotated[int, "Position of the recommended song to add"]) -> Annotated[str, "Result"]:
+#     """Add a recommended song to the playlist based on its position in the recommendation list."""
+#     song = recommended_songs_history[position-1]
+#     if not song:
+#         return "Invalid song selection. Please choose a valid position from the recommendations."
+    
+#     success, added_song = instance.add_song(song.name, song.artist)
+#     if success:
+#         return f'Success! {added_song.name} by {added_song.artist} has been added to your playlist.'
 #     else:
-#         return f"There is no song at position {position} in the playlist."
+#         return f'Failed to add {song}. It may already exist in the playlist or there was an error.'
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -164,7 +178,8 @@ tools = [view_playlist,
         get_album_genre,
         remove_first_n_songs,
         remove_last_song,
-        get_song_by_position] 
+        get_song_by_position,
+        recommend_music] 
 
 
 tool_descriptions = {
@@ -201,6 +216,11 @@ Always at the end of each response, provide additional information about the ava
 Playlist now supports positional references! You can:
 - Remove songs by their position in the playlist (e.g., remove the first 3 songs).
 - Remove the last song in the playlist.
+
+User can ask for recommendations by using the `recommend_music` tool.
+User can add a recommended song to the playlist by using the `add_recommended_song` tool by specifying the position of the recommended song.
+User can remove the first N songs from the playlist by using the `remove_first_n_songs` tool.
+To view a song by its position in the playlist, use the `get_song_by_position` tool.
 
 These new options will enhance your interaction with the playlist.
 """

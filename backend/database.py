@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import os
 import song 
@@ -66,6 +67,17 @@ def get_song_by_name(song_name, artist_name):
         return songMapped
     return None
 
+def get_artist_by_id(artist_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT * FROM artist WHERE id =?
+    ''', (artist_id,))
+    artist_row = cursor.fetchone()
+    conn.close()
+    print("Artist NAME FOUND BY ID ", artist_row[1])
+    return artist_row[1] if artist_row else None
+
 def get_album_by_name(album_name):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -78,6 +90,16 @@ def get_album_by_name(album_name):
     album = cursor.fetchone()
     return album if album else None
 
+def get_album_by_id(album_id):
+    print("Getting album by id", album_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT * FROM album WHERE id =?
+    ''', (album_id,))
+    album = cursor.fetchone()
+    print("Album FOUND BY ID ", album)
+    return album if album else None
  
 def get_albums_by_artist(artist_name):
     conn = get_db_connection()
@@ -144,6 +166,86 @@ def get_artist_by_song_name(song_name):
     ''', (song_name,))
     artist = cursor.fetchone()
     return artist if artist else None
+
+def normalize_song_name(song_name):
+    return re.sub(r"[^\w\s]", "", song_name.lower())
+
+def get_songs_by_artist(artist_name):
+    print("Getting songs by artist", artist_name)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT *
+        FROM song
+        JOIN album ON song.album_id = album.id
+        JOIN artist ON album.artist_id = artist.id
+        WHERE LOWER(artist.name) = LOWER(?)
+    ''', (artist_name,))
+    songs = cursor.fetchall()
+
+    seen_song_names = set()
+    songs_by_artist = []
+
+    if len(songs) > 0:
+        for song_row in songs:
+            song_name = song_row[1]
+            normalized_name = normalize_song_name(song_name)
+            if normalized_name not in seen_song_names:
+                seen_song_names.add(normalized_name)
+
+                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+                songs_by_artist.append(songMapped)
+    print("touple error not here")
+    return songs_by_artist
+
+def get_songs_by_genre(genre):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT *
+        FROM song
+        JOIN album ON song.album_id = album.id
+        WHERE LOWER(album.genre) = LOWER(?)
+    ''', (genre,))
+    songs = cursor.fetchall()
+
+    seen_song_names = set()
+    songs_by_genre = []
+
+    if len(songs) > 0:
+        for song_row in songs:
+            song_name = song_row[1]
+            normalized_name = normalize_song_name(song_name)
+            if normalized_name not in seen_song_names:
+                seen_song_names.add(normalized_name)
+
+                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+                songs_by_genre.append(songMapped)
+    return songs_by_genre
+
+def get_songs_by_year(year):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT DISTINCT *
+        FROM song
+        JOIN album ON song.album_id = album.id
+        WHERE album.release_year = ?
+    ''', (year,))
+    songs = cursor.fetchall()
+
+    seen_song_names = set()
+    songs_by_year = []
+    if len(songs) > 0:
+        for song_row in songs:
+            song_name = song_row[1]
+            normalized_name = normalize_song_name(song_name)
+            if normalized_name not in seen_song_names:
+                seen_song_names.add(normalized_name)
+
+                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+                songs_by_year.append(songMapped)
+    return songs_by_year
 
 def populate_playlist():
     conn = get_db_connection()
