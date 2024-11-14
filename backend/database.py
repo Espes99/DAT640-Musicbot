@@ -192,11 +192,12 @@ def get_artist_by_id(artist_id):
 def get_album_by_name(album_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
         SELECT album.*, artist.name AS artist_name
         FROM album
         JOIN artist ON album.artist_id = artist.id
-        WHERE LOWER(album.name) = LOWER(?)
+        WHERE DROPACCENTS(LOWER(album.name)) = DROPACCENTS(LOWER(?))
     ''', (album_name,))
     album = cursor.fetchone()
     return album if album else None
@@ -213,8 +214,9 @@ def get_album_by_id(album_id):
 def get_albums_by_artist(artist_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
-    SELECT id FROM artist WHERE LOWER(name) = LOWER(?)
+    SELECT id FROM artist WHERE DROPACCENTS(LOWER(name)) = DROPACCENTS(LOWER(?))
     ''', (artist_name,))
     artist = cursor.fetchone()
     if artist:
@@ -231,11 +233,12 @@ def get_albums_by_artist(artist_name):
 def get_albums_by_song(song_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
         SELECT album.name 
         FROM song
         JOIN album ON song.album_id = album.id
-        WHERE LOWER(song.name) = LOWER(?);
+        WHERE DROPACCENTS(LOWER(song.name)) = DROPACCENTS(LOWER(?));
     ''', (song_name,))
     album = cursor.fetchone()
     return album if album else None
@@ -244,11 +247,12 @@ def get_albums_by_song(song_name):
 def get_songs_from_album_name(album_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
         SELECT song.name 
         FROM song
         JOIN album ON song.album_id = album.id
-        WHERE LOWER(album.name) = LOWER(?);
+        WHERE DROPACCENTS(LOWER(album.name)) = DROPACCENTS(LOWER(?));
     ''', (album_name,))
     songs = cursor.fetchall()
     return songs if len(songs) > 0 else None
@@ -256,10 +260,11 @@ def get_songs_from_album_name(album_name):
 def get_genre_by_album_name(album_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
         SELECT genre 
         FROM album
-        WHERE LOWER(album.name) = LOWER(?);
+        WHERE DROPACCENTS(LOWER(album.name)) = DROPACCENTS(LOWER(?));
     ''', (album_name,))
     genre = cursor.fetchone()
     return genre if genre else None
@@ -268,10 +273,11 @@ def get_genre_by_album_name(album_name):
 def get_artist_by_song_name(song_name):
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor.execute('''
         SELECT artist 
         FROM song
-        WHERE LOWER(song.name) = LOWER(?);
+        WHERE DROPACCENTS(LOWER(song.name)) = DROPACCENTS(LOWER(?));
     ''', (song_name,))
     artist = cursor.fetchone()
     return artist if artist else None

@@ -1,7 +1,9 @@
 import json
 import os
 import re
+import database
 import playlist
+import song
 
 
 def load_playlists_from_json() -> list:
@@ -86,3 +88,32 @@ def create_playlist_based_on_input(user_input: str, playlists: list, connection,
             break
     
     return created_playlist
+
+
+def recommend_music_based_on_most_occuring_genre_in_playlist(myPlaylist: playlist.Playlist, spotifyPlaylists: list):
+    """Recommend music based on the most occurring genre in the playlist"""
+    genre = myPlaylist.get_most_occuring_genre()
+    print("Most occurring genre in the playlist: ", genre)
+
+    recommended_songs_to_return = []
+
+    scored_playlists = score_spotify_playlists(genre, spotifyPlaylists)
+    for playlist_scored, score in scored_playlists:
+        if score > 0: 
+            for track in playlist_scored['tracks']:
+                song_name = track['track_name']
+                artist_name = track['artist_name']
+                song_duration = track['duration_ms'] / 60000 
+                minutes = int(song_duration // 1)  
+                seconds = int((song_duration % 1) * 60)  
+                formatted_duration = f"{minutes}:{seconds:02d}"
+                database.get_song_or_add_song(song_name, artist_name, formatted_duration)
+                recommended_songs_to_return.append((None, song_name, None, artist_name, formatted_duration))
+                print("LENGTH UNDER ME")
+                print(len(recommended_songs_to_return))
+                if len(recommended_songs_to_return) >= 2:
+                    break
+        if len(recommended_songs_to_return) >= 10:
+            break
+
+    return recommended_songs_to_return
