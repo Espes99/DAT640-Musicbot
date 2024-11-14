@@ -81,7 +81,6 @@ class Playlist:
         for song in self.songs:
             album = database.get_album_by_id(song.album_id)
             artist_name = database.get_artist_by_id(album[2])
-            print(f"found artist {artist_name} in album... {album[1]}")
             if album:
                 genre = album[4] 
                 release_year = album[3]  
@@ -91,7 +90,6 @@ class Playlist:
             if len(recommendations) >= 10:
                 break
 
-        print(f"I found {len(recommendations)} recommendations based on your playlist:")
         if not recommendations:
             return "I couldn't find any recommendations based on your playlist."
 
@@ -99,11 +97,8 @@ class Playlist:
 
     def _get_recommendations(self, artist_name, genre, release_year):
         artist_songs = database.get_songs_by_artist(artist_name)
-        print(f"Found {len(artist_songs)} songs by {artist_name}")
         genre_songs = database.get_songs_by_genre(genre) if genre != "Unknown Genre" or genre != "" else []
-        print(f"Found {len(genre_songs)} songs in the same genre: {genre}")
         year_songs = database.get_songs_by_year(release_year) if release_year != "Unknown Release Date" or release_year != "" else []
-        print(f"Found {len(year_songs)} songs in the same release year: {release_year}")
         
         recommendations = set(artist_songs + genre_songs + year_songs)
         recommendations = [song for song in recommendations if song not in self.songs]
@@ -148,3 +143,7 @@ class Playlist:
         else:
             print(f"I couldn't find or add '{song_name}' by '{artist_name}' to the playlist.")
             return False, song
+        
+    def get_most_occuring_genre(self):
+        genres = [database.get_album_by_id(song.album_id)[4] for song in self.songs]
+        return max(set(genres), key = genres.count)

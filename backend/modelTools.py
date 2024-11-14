@@ -19,12 +19,12 @@ def add_song_by_artist_to_playlist(songname: str, artistname: Optional[str] = No
     """Add song by artist name or empty artist name to playlist"""
     global song_history
     if artistname is None or artistname == "":
-         songs_to_choose_from = database.get_song(songname)
+         songs_to_choose_from = database.get_song(songname, instance.get_most_occuring_genre())
          if songs_to_choose_from:
             song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs_to_choose_from)]
             song_history = songs_to_choose_from
             return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
-    songs = database.get_song_by_name_and_artist(songname, artistname)
+    songs = database.get_song_by_name_and_artist(songname, artistname, instance.get_most_occuring_genre())
     if songs:
         if len(songs) == 1:
             print("SONGS: ",songs[0])
@@ -50,7 +50,7 @@ def add_song_by_position(song_position: Annotated[int, "Position of the song in 
     
     if isinstance(song_history[0], str):  
         song_entries = song_history[0].split(', ')
-        
+
         if song_position < 1 or song_position > len(song_entries):
             return "Error: Position out of range in recommended history."
 
@@ -188,7 +188,6 @@ def recommend_music() -> Annotated[str, "Result"]:
     recommendations = instance.recommend_music()
     global song_history
     song_history.append(recommendations)
-    print("Recommendation set:: " + str(song_history))
     if not recommendations:
         return "I couldn't find any recommendations based on your playlist."
     

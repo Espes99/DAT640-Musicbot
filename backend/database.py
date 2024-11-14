@@ -70,7 +70,8 @@ def drop_accents(text):
         return text
     return text
 
-def get_song(song_name):
+def get_song(song_name, most_occuring_genre):
+    print("Most occurring genre:", most_occuring_genre)
     conn = get_db_connection()
     conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
@@ -81,16 +82,24 @@ def get_song(song_name):
     ''', (song_name,))
     
     song_row = cursor.fetchall()
-    print("Heisa", song_row)
     conn.close()
-    
+
     if song_row:
         songMapped = []
         for songen in song_row:
+            album = get_album_by_id(songen[2])
+            album_genre = album[4]
             if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
-                songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
-                if len(songMapped) > 5:
-                    break
+                if most_occuring_genre and album_genre == most_occuring_genre:
+                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    print(f"Found song: {songen[1]} by {songen[3]} with genre {album_genre}")
+                    if len(songMapped) > 5:
+                        break
+        for songen in song_row:
+                if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
+                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    if len(songMapped) > 5:
+                        break
         return songMapped
     return None
 
@@ -136,7 +145,7 @@ def get_song_by_name(song_name, artist_name):
         return songMapped
     return None
 
-def get_song_by_name_and_artist(song_name, artist_name):
+def get_song_by_name_and_artist(song_name, artist_name, most_occuring_genre):
     conn = get_db_connection()
     conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
@@ -152,9 +161,20 @@ def get_song_by_name_and_artist(song_name, artist_name):
     if song_row:
         song_mapped = []
         for songen in song_row:
-            # Check if songen[1] is not already in any song in song_mapped
+            album = get_album_by_id(songen[2])
+            album_genre = album[4]
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
+                if most_occuring_genre and album_genre == most_occuring_genre:
+                    song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    print(f"Found song: {songen[1]} by {songen[3]} with genre {album_genre}")
+                    if len(song_mapped) > 5:
+                        break
+        for songen in song_row:
             if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
                 song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                print("Added song not with occuring genre", songen[1])
+                if len(song_mapped) > 5:
+                    break
         return song_mapped
     return None
 
@@ -167,7 +187,6 @@ def get_artist_by_id(artist_id):
     ''', (artist_id,))
     artist_row = cursor.fetchone()
     conn.close()
-    print("Artist NAME FOUND BY ID ", artist_row[1])
     return artist_row[1] if artist_row else None
 
 def get_album_by_name(album_name):
@@ -183,14 +202,12 @@ def get_album_by_name(album_name):
     return album if album else None
 
 def get_album_by_id(album_id):
-    print("Getting album by id", album_id)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         SELECT * FROM album WHERE id =?
     ''', (album_id,))
     album = cursor.fetchone()
-    print("Album FOUND BY ID ", album)
     return album if album else None
  
 def get_albums_by_artist(artist_name):
