@@ -8,7 +8,7 @@ import re
 from unidecode import unidecode
 
 
-DB_PATH = os.path.join('data', 'music.db')
+DB_PATH = os.path.join('backend', 'data', 'music.db')
 musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
 
 def normalize_string(input_string):
@@ -345,6 +345,7 @@ def format_song_length(length):
     
     return f"{minutes}:{remaining_seconds:02d}"
 
+
 def populate_database():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -354,7 +355,8 @@ def populate_database():
         cursor.execute("SELECT COUNT(*) FROM song")
         songs_in_database = cursor.fetchone()[0]
         database_amount = songs_in_database
-        result = musicbrainzngs.search_recordings('i', limit=100, offset=offset)
+        result = musicbrainzngs.search_recordings('f', limit=100, offset=offset)
+        recordings_with_tags = [recording for recording in result.get("recording-list", []) if "tag-list" in recording]
         formatted_results = [
             {
                 'song_title': rec['title'] if 'title' in rec and rec['title'] else 'Unknown Song title',
@@ -364,7 +366,7 @@ def populate_database():
                 'album_release_year': rec['release-list'][0]['date'].split('-')[0] if 'release-list' in rec and 'date' in rec['release-list'][0] and rec['release-list'] else 'Unknown Release Date',
                 'album_genre': rec['tag-list'][0]['name'] if 'tag-list' in rec else 'Unknown Genre'
             }
-            for rec in result['recording-list']
+            for rec in recordings_with_tags
         ]
         amount = add_to_database(formatted_results, conn)
         count = amount - songs_in_database
