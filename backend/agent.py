@@ -7,8 +7,6 @@ import database
 import playlist
 from ollama import *
 from langchain_ollama import ChatOllama
-from langgraph.prebuilt import ToolNode 
-from langchain_core.messages import HumanMessage
 
 db_connection = database.get_db_connection()
 
@@ -29,6 +27,7 @@ Important rules to follow:
   - `add_song_by_artist_to_playlist`: Add a song to the playlist by specifying the song name and artist, but artist CAN be None. 
                                       If user writes "add baby" the system will recoginize that the artist name is not provided, and thereby None and execute add_song_by_artist_to_playlist with artistname being None.
                                       For instance if user writes "add baby by justin bieber" the system will recoginize that the artist name is "justin bieber" and that the song name is baby.
+- `add_song_by_position`: Add a song to the playlist at a specific position by specifying position after either getting recommended songs or song choices from `add_song_by_artist_to_playlist`.
   - `remove_from_playlist`: Remove a song from the playlist by specifying the artist name and song name, or by position.
   - `clear_the_playlist`: Clear the entire playlist.
   - `when_album_released`: Get the release date of an album by specifying the album name.
@@ -41,6 +40,7 @@ Important rules to follow:
   - `remove_last_song`: Remove the last song from the playlist.
   - `get_song_by_position`: Get the details of a song by specifying the position in the playlist.
   - `recommend_music`: Get music recommendations based on user preferences and listening habits.
+  - `create_playlist_from_input`: Create a new playlist from keyword categories from user, if no tracklimit is provided, set this to a reasonable number, e.g. if input is "gym" the tracklimit is 20, if the input is "car ride" or "car" the tracklimit is 40, etc.
 
 Only use these tools and never use any other source of knowledge. Be sure to follow these rules strictly. 
 
@@ -50,6 +50,7 @@ playlist_instance = playlist.Playlist(name='My Playlist', db_connection=db_conne
 
 tools = [view_playlist,
         add_song_by_artist_to_playlist, 
+        add_song_by_position,
         remove_from_playlist, 
         clear_the_playlist, 
         when_album_released, 
@@ -62,7 +63,8 @@ tools = [view_playlist,
         remove_last_song,
         get_song_by_position,
         get_song_by_position,
-        recommend_music]
+        recommend_music, 
+        create_playlist_from_input]
 
 class MusicBotAgent(Agent):
     def __init__(self, agent_id: str = "music-bot"):
@@ -95,40 +97,28 @@ class MusicBotAgent(Agent):
     def receive_utterance(self, utterance: Utterance) -> None:
         utterance_lower = utterance.text.lower()
         count = 0
-        # Loop until tool_calls is not null
-        while True:
-            print(count)
+        while count < 3:
             response = self.mistral_model.invoke(utterance_lower)
-            print("MODEL: ", response)
             song_response = response.content
-            
-            # If the utterance is "exit", end the conversation
             if utterance_lower == "exit":
+                count += 1
                 self.goodbye()
                 return
-
             tool_calls = response.response_metadata.get("message", {}).get("tool_calls", [])
-            print("TOOL CALLS: ", tool_calls)   
-            # If tool_calls is not empty, break the loop
+            count += 1
             if tool_calls:
+                count += 1
                 for tool_call in tool_calls:
                     tool_name = tool_call['function'].get("name")
                     tool_input = tool_call['function']['arguments']
-                    print(tool_name)
-                    print(tool_input)
-                    
                     for tool in tools:
                         if tool.name == tool_name:
                             result = tool.invoke(tool_input)
                             song_response = result
                             break
-                break  # Exit the loop when tool_calls is not empty
-
-        # Return the annotated response
+                break 
         response = AnnotatedUtterance(
             song_response,
             participant=DialogueParticipant.AGENT,
         )
-        count += 1
-        print()
         self._dialogue_connector.register_agent_utterance(response)

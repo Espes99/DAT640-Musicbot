@@ -1,19 +1,16 @@
 import re
 import sqlite3
 import os
+from typing import Optional
 import song 
 import musicbrainzngs
 import unicodedata
 import re
 from unidecode import unidecode
-
+import song
 
 DB_PATH = os.path.join('backend', 'data', 'music.db')
 musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
-
-def normalize_string(input_string):
-    # Normalize the string to remove special characters
-    return unicodedata.normalize('NFKD', input_string).encode('ASCII', 'ignore').decode('utf-8').lower()
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -54,13 +51,6 @@ def initialize_database():
         )
     ''')
 
-def normalize_text(text):
-    # Normalize text to remove accents and convert to lowercase
-    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-    # Remove punctuation using regex
-    text = re.sub(r'[^\w\s]', '', text)
-    return text.lower()
-
 def drop_accents(text):
     if text:
         text = unidecode(text)
@@ -69,7 +59,8 @@ def drop_accents(text):
         return text
     return text
 
-def get_song(song_name):
+""" def get_song(song_name, most_occuring_genre):
+    print("Most occurring genre:", most_occuring_genre)
     conn = get_db_connection()
     conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
@@ -77,26 +68,59 @@ def get_song(song_name):
     cursor.execute('''
         SELECT * FROM song
         WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%'
-        LIMIT 5
     ''', (song_name,))
     
     song_row = cursor.fetchall()
-    print("Heisa", song_row)
     conn.close()
-    
+
     if song_row:
         songMapped = []
         for songen in song_row:
-            songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+            album = get_album_by_id(songen[2])
+            album_genre = album[4]
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
+                if most_occuring_genre and album_genre == most_occuring_genre:
+                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    print(f"Found song: {songen[1]} by {songen[3]} with genre {album_genre}")
+                    if len(songMapped) > 5:
+                        break
+        for songen in song_row:
+                if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
+                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    if len(songMapped) > 5:
+                        break
         return songMapped
-    return None
+    return None """
 
+def get_song_or_add_song(song_name, artist_name, song_length):
+    try:
+        print("Fetching song", song_name, artist_name)
+        song_fetched = get_song_by_name_and_artist(song_name, artist_name)
+        if song_fetched and len(song_fetched) > 1:
+            return song_fetched
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO song (name, album_id, artist, length)
+                VALUES (?,?,?,?)
+            ''', (song_name, None, artist_name, song_length))
+            conn.commit()
+            song_to_return = get_song_by_name(song_name, artist_name)
+            return song_to_return
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
+    
 def get_song_by_name(song_name, artist_name):
     conn = get_db_connection()
     conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
-    print("artistname", drop_accents(artist_name))
-    print("songname", drop_accents(song_name))
     cursor.execute('''
         SELECT * FROM song
         WHERE DROPACCENTS(LOWER(name)) = DROPACCENTS(LOWER(?)) AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
@@ -109,6 +133,44 @@ def get_song_by_name(song_name, artist_name):
         return songMapped
     return None
 
+def get_song_by_name_and_artist(song_name, artist_name: Optional[str] = None, most_occuring_genre: Optional[str] = None):
+    conn = get_db_connection()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
+    cursor = conn.cursor()
+    
+    if artist_name == None or artist_name == "":
+        cursor.execute('''
+        SELECT * FROM song
+        WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%'
+    ''', (song_name,))
+    
+    else:
+        cursor.execute('''
+            SELECT * FROM song
+            WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%' AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
+        ''', (song_name, artist_name))
+
+    song_row = cursor.fetchall()
+    conn.close()
+    if song_row:
+        song_mapped = []
+        for songen in song_row:
+            album = get_album_by_id(songen[2])
+            album_genre = album[4]
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
+                if most_occuring_genre and album_genre == most_occuring_genre:
+                    song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                    if len(song_mapped) > 5:
+                        break
+        for songen in song_row:
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
+                song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                if len(song_mapped) > 5:
+                    break
+        return song_mapped
+    return None
+
+
 def get_artist_by_id(artist_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -117,7 +179,6 @@ def get_artist_by_id(artist_id):
     ''', (artist_id,))
     artist_row = cursor.fetchone()
     conn.close()
-    print("Artist NAME FOUND BY ID ", artist_row[1])
     return artist_row[1] if artist_row else None
 
 def get_album_by_name(album_name):
@@ -133,14 +194,12 @@ def get_album_by_name(album_name):
     return album if album else None
 
 def get_album_by_id(album_id):
-    print("Getting album by id", album_id)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         SELECT * FROM album WHERE id =?
     ''', (album_id,))
     album = cursor.fetchone()
-    print("Album FOUND BY ID ", album)
     return album if album else None
  
 def get_albums_by_artist(artist_name):

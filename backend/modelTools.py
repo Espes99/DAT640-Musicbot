@@ -1,11 +1,13 @@
+import song
 import database, playlist
 from langchain_core.tools import tool
 from typing import Annotated
 from typing import Optional
+from spotify_playlist import load_playlists_from_json, create_playlist_based_on_input
 
 db_connection = database.get_db_connection()
 instance = playlist.Playlist(name='My Playlist', db_connection=db_connection)
-
+song_history = []
 @tool
 def view_playlist() -> Annotated[str, "Contents of the playlist"]:
     """View playlist"""
@@ -15,16 +17,63 @@ def view_playlist() -> Annotated[str, "Contents of the playlist"]:
 @tool
 def add_song_by_artist_to_playlist(songname: str, artistname: Optional[str] = None) -> str:
     """Add song by artist name or empty artist name to playlist"""
+    global song_history
     if artistname is None or artistname == "":
-         songs_to_choose_from = database.get_song(songname)
+         songs_to_choose_from = database.get_song(songname, instance.get_most_occuring_genre())
          if songs_to_choose_from:
-             song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs_to_choose_from)]
-             return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
-    success, song = instance.add_song(songname, artistname)
-    if success:
-        return f'Success! I have added {song.name} by {song.artist} to playlist'
+            song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs_to_choose_from)]
+            song_history = songs_to_choose_from
+            return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
+    songs = database.get_song_by_name_and_artist(songname, artistname, instance.get_most_occuring_genre())
+    if songs:
+        if len(songs) == 1:
+            print("SONGS: ",songs[0])
+            success, song = instance.add_song(songs[0].name, songs[0].artist)
+            song_history = []
+            if success:
+                return f'Added {song.name} by {song.artist} to playlist'
+            else:
+                return f'I was unable to add {songs[0].name} by {songs[0].artist} to playlist'
+        song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs)]
+        song_history = songs
+        return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
     else:
         return f'Hmm... I was unable to add {songname} by {artistname} to playlist. It may already be in the playlist, or does not exist in the database. Try again.'
+
+@tool 
+def add_song_by_position(song_position: Annotated[int, "Position of the song in the playlist (1-based)"]) -> Annotated[str, "Result"]:
+    """Add a song to the playlist either from the recommended history or song choices."""
+    global song_history
+    
+    if not song_history:
+        return "Error: No songs available in the history."
+    
+    if isinstance(song_history[0], str):  
+        song_entries = song_history[0].split(', ')
+
+        if song_position < 1 or song_position > len(song_entries):
+            return "Error: Position out of range in recommended history."
+
+        song_entry = song_entries[song_position - 1]
+        try:
+            song_name, artist_name = song_entry.split(' by ')
+        except ValueError:
+            return "Error: Invalid song format in recommended history."
+
+        song_history = []  
+        success, songs = instance.add_song(song_name, artist_name)
+        if success:
+            return f"Added '{songs.name}' by {songs.artist} to the playlist at position {song_position}."
+        else:
+            return f"I couldn't add '{song_name}' by {artist_name} to the playlist at position {song_position}."
+    
+    elif isinstance(song_history[0], song.Song):  
+        songs = song_history[song_position - 1]
+        instance.add_song(songs.name, songs.artist)
+        song_history = [] 
+        return f'Added {songs.name} by {songs.artist} to playlist'
+    else:
+        return "Error: Invalid song history format."
 
 @tool
 def remove_from_playlist(songname: Annotated[str, "SongName"], artistname: Annotated[str, "ArtistName"]) -> Annotated[str, "Result"]:
@@ -137,16 +186,36 @@ def get_song_by_position(position: Annotated[int, "Position of the song in the p
 def recommend_music() -> Annotated[str, "Result"]:
     """Recommend songs based on the current playlist."""
     recommendations = instance.recommend_music()
-
+    global song_history
+    song_history.append(recommendations)
     if not recommendations:
         return "I couldn't find any recommendations based on your playlist."
     
     return recommendations
 
 
+@tool
+def create_playlist_from_input(user_input: Annotated[str, "User input for categories to playlist creation and track limit that is optional"], trackLimit: Optional[int] = None) -> Annotated[str, "Result"]:
+    """Create a playlist based on user input as categories and an optional tracklimit."""
+    playlists = load_playlists_from_json()  
+    track_limit_mapping = {
+        "gym": 10,
+        "car": 20,
+        "car ride": 20,
+        "workout": 18,
+        "study": 7,
+        "party": 15
+    }
 
+    if trackLimit is None:
+        for key, limit in track_limit_mapping.items():
+            if key in user_input.lower():
+                trackLimit = limit
+                break
 
-
-
-#Error handling or checks, output and intents. Repeat call
-
+    playlist_output = create_playlist_based_on_input(user_input, playlists, db_connection, trackLimit = None if trackLimit is None or trackLimit == "" else trackLimit)
+    global instance
+    instance.clear_playlist()
+    instance = playlist_output
+    
+    return f"Here is your playlist with {trackLimit} songs, based on '{user_input}':\n{instance.view_playlist()}"
