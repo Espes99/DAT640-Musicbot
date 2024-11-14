@@ -40,7 +40,8 @@ Important rules to follow:
   - `remove_last_song`: Remove the last song from the playlist.
   - `get_song_by_position`: Get the details of a song by specifying the position in the playlist.
   - `recommend_music`: Get music recommendations based on user preferences and listening habits.
-  - `create_playlist_from_input`: Create a new playlist from keyword categories from user, if no tracklimit is provided, set this to a reasonable number, e.g. if input is "gym" the tracklimit is 20, if the input is "car ride" or "car" the tracklimit is 40, etc.
+  - `create_playlist_from_input`: Create a new playlist from keyword categories from user.
+  - `recommend_music_based_on_others_playlists`: Get music recommendations based on other playlists.
 
 Only use these tools and never use any other source of knowledge. Be sure to follow these rules strictly. 
 
@@ -64,7 +65,8 @@ tools = [view_playlist,
         get_song_by_position,
         get_song_by_position,
         recommend_music, 
-        create_playlist_from_input]
+        create_playlist_from_input,
+        recommend_music_based_on_others_playlists]
 
 class MusicBotAgent(Agent):
     def __init__(self, agent_id: str = "music-bot"):

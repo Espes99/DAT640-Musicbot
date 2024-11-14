@@ -3,7 +3,7 @@ import database, playlist
 from langchain_core.tools import tool
 from typing import Annotated
 from typing import Optional
-from spotify_playlist import load_playlists_from_json, create_playlist_based_on_input
+from spotify_playlist import load_playlists_from_json, create_playlist_based_on_input, recommend_music_based_on_most_occuring_genre_in_playlist
 
 db_connection = database.get_db_connection()
 instance = playlist.Playlist(name='My Playlist', db_connection=db_connection)
@@ -23,7 +23,7 @@ def add_song_by_artist_to_playlist(songname: str, artistname: Optional[str] = No
          if songs_to_choose_from:
             song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs_to_choose_from)]
             song_history = songs_to_choose_from
-            return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
+            return f"Which song with name {songname} would you like to add to the playlist? I see that you like {instance.get_most_occuring_genre()}. Here are songs you can choose from:\n" + "\n".join(song_details)
     songs = database.get_song_by_name_and_artist(songname, artistname, instance.get_most_occuring_genre())
     if songs:
         if len(songs) == 1:
@@ -36,7 +36,7 @@ def add_song_by_artist_to_playlist(songname: str, artistname: Optional[str] = No
                 return f'I was unable to add {songs[0].name} by {songs[0].artist} to playlist'
         song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs)]
         song_history = songs
-        return f"Which song with name {songname} would you like to add to the playlist? Here are the songs you can choose from:\n" + "\n".join(song_details)
+        return f"Which song with name {songname} would you like to add to the playlist? I see that you like {instance.get_most_occuring_genre()}. Here are songs you can choose from:\n" + "\n".join(song_details)
     else:
         return f'Hmm... I was unable to add {songname} by {artistname} to playlist. It may already be in the playlist, or does not exist in the database. Try again.'
 
@@ -47,7 +47,7 @@ def add_song_by_position(song_position: Annotated[int, "Position of the song in 
     
     if not song_history:
         return "Error: No songs available in the history."
-    
+    print("Type of song history: ", type(song_history[0]))
     if isinstance(song_history[0], str):  
         song_entries = song_history[0].split(', ')
 
@@ -69,9 +69,20 @@ def add_song_by_position(song_position: Annotated[int, "Position of the song in 
     
     elif isinstance(song_history[0], song.Song):  
         songs = song_history[song_position - 1]
-        instance.add_song(songs.name, songs.artist)
+        success, songen = instance.add_song(songs.name, songs.artist)
         song_history = [] 
-        return f'Added {songs.name} by {songs.artist} to playlist'
+        if success:
+            return f'Added {songen.name} by {songen.artist} to playlist'
+        else:
+            return f'I couldn\'t add {songs.name} by {songs.artist} to the playlist'
+    elif isinstance(song_history[0], list):  
+        songs = song_history[0][song_position - 1]
+        success, songen = instance.add_song(songs.name, songs.artist)
+        song_history = [] 
+        if success:
+            return f'Added {songen.name} by {songen.artist} to playlist'
+        else:
+            return f'I couldn\'t add {songs.name} by {songs.artist} to the playlist'
     else:
         return "Error: Invalid song history format."
 
@@ -192,6 +203,22 @@ def recommend_music() -> Annotated[str, "Result"]:
         return "I couldn't find any recommendations based on your playlist."
     
     return recommendations
+
+@tool
+def recommend_music_based_on_others_playlists()-> Annotated[str, "Result"]:
+    """Recommend songs based on other playlists."""
+    playlists = load_playlists_from_json()  
+    global song_history
+    recommendations = recommend_music_based_on_most_occuring_genre_in_playlist(instance, playlists)
+    listen = []
+    for rec in recommendations:
+        songobject = song.Song(rec[0], rec[1], rec[2], rec[3], rec[4])
+        listen.append(songobject)
+    song_history.append(listen)
+    if not recommendations:
+        return "I couldn't find any recommendations based on your playlist and the other users' playlists."
+    
+    return [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(listen)]
 
 
 @tool

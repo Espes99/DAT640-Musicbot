@@ -109,24 +109,24 @@ class Playlist:
             random_artist_song = random.choice(artist_songs)
             final_recommendations.append(random_artist_song)
             print(f"Selected {random_artist_song.name} by {random_artist_song.artist} based on the same artist: {artist_name}")
+            print()
 
         if genre_songs:
             random_genre_song = random.choice(genre_songs)
             final_recommendations.append(random_genre_song)
             print(f"Selected {random_genre_song.name} by {random_genre_song.artist} based on the same genre: {genre}")
+            print()
 
         if year_songs:
             random_year_song = random.choice(year_songs)
             final_recommendations.append(random_year_song)
             print(f"Selected {random_year_song.name} by {random_year_song.artist} based on the release year: {release_year}")
+            print()
 
         remaining_slots = random.randint(2, 7)
         remaining_recommendations = list(set(recommendations) - set(final_recommendations))
         random.shuffle(remaining_recommendations)
         final_recommendations.extend(remaining_recommendations[:remaining_slots])
-
-        for song in remaining_recommendations[:remaining_slots]:
-            print(f"Added {song.name} by {song.artist} to fill the remaining slots in the recommendation list.")
 
         return final_recommendations[:random.randint(5, 10)]
     
