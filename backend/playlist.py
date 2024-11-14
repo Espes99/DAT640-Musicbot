@@ -134,3 +134,17 @@ class Playlist:
             print(f"Added {song.name} by {song.artist} to fill the remaining slots in the recommendation list.")
 
         return final_recommendations[:random.randint(5, 10)]
+    
+
+    def add_song_from_creation(self, song_name: str, artist_name, song_length):
+        song = database.get_song_or_add_song(song_name, artist_name, song_length)
+        if song:
+            if song not in self.songs:
+                self.songs.append(song)
+                return True, song
+            else:
+                print(f"Song '{song_name}' by '{artist_name}' already exists in the playlist.")
+                return False, song
+        else:
+            print(f"I couldn't find or add '{song_name}' by '{artist_name}' to the playlist.")
+            return False, song

@@ -6,6 +6,7 @@ import musicbrainzngs
 import unicodedata
 import re
 from unidecode import unidecode
+import song
 
 
 DB_PATH = os.path.join('data', 'music.db')
@@ -77,7 +78,6 @@ def get_song(song_name):
     cursor.execute('''
         SELECT * FROM song
         WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%'
-        LIMIT 5
     ''', (song_name,))
     
     song_row = cursor.fetchall()
@@ -87,16 +87,43 @@ def get_song(song_name):
     if song_row:
         songMapped = []
         for songen in song_row:
-            songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
+                songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                if len(songMapped) > 5:
+                    break
         return songMapped
     return None
+
+def get_song_or_add_song(song_name, artist_name, song_length):
+    try:
+        print("Fetching song", song_name, artist_name)
+        song_fetched = get_song_by_name(song_name, artist_name)
+        if song_fetched:
+            return song_fetched
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO song (name, album_id, artist, length)
+                VALUES (?,?,?,?)
+            ''', (song_name, None, artist_name, song_length))
+            conn.commit()
+            song_to_return = get_song_by_name(song_name, artist_name)
+            return song_to_return
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
+    
 
 def get_song_by_name(song_name, artist_name):
     conn = get_db_connection()
     conn.create_function("DROPACCENTS", 1, drop_accents)
     cursor = conn.cursor()
-    print("artistname", drop_accents(artist_name))
-    print("songname", drop_accents(song_name))
     cursor.execute('''
         SELECT * FROM song
         WHERE DROPACCENTS(LOWER(name)) = DROPACCENTS(LOWER(?)) AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
@@ -108,6 +135,29 @@ def get_song_by_name(song_name, artist_name):
         songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
         return songMapped
     return None
+
+def get_song_by_name_and_artist(song_name, artist_name):
+    conn = get_db_connection()
+    conn.create_function("DROPACCENTS", 1, drop_accents)
+    cursor = conn.cursor()
+    print("artistname", drop_accents(artist_name))
+    print("songname", drop_accents(song_name))
+    cursor.execute('''
+        SELECT * FROM song
+        WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%' AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
+    ''', (song_name, artist_name))
+    song_row = cursor.fetchall()
+    print("songrow", song_row)
+    conn.close()
+    if song_row:
+        song_mapped = []
+        for songen in song_row:
+            # Check if songen[1] is not already in any song in song_mapped
+            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
+                song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+        return song_mapped
+    return None
+
 
 def get_artist_by_id(artist_id):
     conn = get_db_connection()
