@@ -19,7 +19,7 @@ def add_song_by_artist_to_playlist(songname: str, artistname: Optional[str] = No
     """Add song by artist name or empty artist name to playlist"""
     global song_history
     if artistname is None or artistname == "":
-         songs_to_choose_from = database.get_song(songname, instance.get_most_occuring_genre())
+         songs_to_choose_from = database.get_song_by_name_and_artist(songname, None, instance.get_most_occuring_genre())
          if songs_to_choose_from:
             song_details = [f" {i + 1}. Title: {song.name}, Artist: {song.artist}. " for i, song in enumerate(songs_to_choose_from)]
             song_history = songs_to_choose_from

@@ -9,7 +9,7 @@ import re
 from unidecode import unidecode
 import song
 
-DB_PATH = os.path.join('backend', 'data', 'music.db')
+DB_PATH = os.path.join('data', 'music.db')
 musicbrainzngs.set_useragent("DAT640-MUSICBOT", "1.0", "s.melkevig@stud.uis.no")
 
 def get_db_connection():
@@ -59,45 +59,13 @@ def drop_accents(text):
         return text
     return text
 
-""" def get_song(song_name, most_occuring_genre):
-    print("Most occurring genre:", most_occuring_genre)
-    conn = get_db_connection()
-    conn.create_function("DROPACCENTS", 1, drop_accents)
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        SELECT * FROM song
-        WHERE DROPACCENTS(LOWER(name)) LIKE '%' || DROPACCENTS(LOWER(?)) || '%'
-    ''', (song_name,))
-    
-    song_row = cursor.fetchall()
-    conn.close()
-
-    if song_row:
-        songMapped = []
-        for songen in song_row:
-            album = get_album_by_id(songen[2])
-            album_genre = album[4]
-            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
-                if most_occuring_genre and album_genre == most_occuring_genre:
-                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
-                    print(f"Found song: {songen[1]} by {songen[3]} with genre {album_genre}")
-                    if len(songMapped) > 5:
-                        break
-        for songen in song_row:
-                if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and existing_song.artist.lower() == songen[3].lower() for existing_song in songMapped):
-                    songMapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
-                    if len(songMapped) > 5:
-                        break
-        return songMapped
-    return None """
-
 def get_song_or_add_song(song_name, artist_name, song_length):
     try:
         print("Fetching song", song_name, artist_name)
         song_fetched = get_song_by_name_and_artist(song_name, artist_name)
-        if song_fetched and len(song_fetched) > 1:
-            return song_fetched
+        print("FETCHED: ", song_fetched)
+        if song_fetched and len(song_fetched) > 0:
+            return song_fetched[0]
         else:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -106,8 +74,8 @@ def get_song_or_add_song(song_name, artist_name, song_length):
                 VALUES (?,?,?,?)
             ''', (song_name, None, artist_name, song_length))
             conn.commit()
-            song_to_return = get_song_by_name(song_name, artist_name)
-            return song_to_return
+            song_to_return = get_song_by_name_and_artist(song_name, artist_name)
+            return song_to_return[0]
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
@@ -116,22 +84,6 @@ def get_song_or_add_song(song_name, artist_name, song_length):
             conn.close()
         except:
             pass
-    
-def get_song_by_name(song_name, artist_name):
-    conn = get_db_connection()
-    conn.create_function("DROPACCENTS", 1, drop_accents)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT * FROM song
-        WHERE DROPACCENTS(LOWER(name)) = DROPACCENTS(LOWER(?)) AND DROPACCENTS(LOWER(artist)) = DROPACCENTS(LOWER(?))
-    ''', (song_name, artist_name))
-    song_row = cursor.fetchone()
-    print("songrow", song_row)
-    conn.close()
-    if song_row:
-        songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
-        return songMapped
-    return None
 
 def get_song_by_name_and_artist(song_name, artist_name: Optional[str] = None, most_occuring_genre: Optional[str] = None):
     conn = get_db_connection()
@@ -151,6 +103,7 @@ def get_song_by_name_and_artist(song_name, artist_name: Optional[str] = None, mo
         ''', (song_name, artist_name))
 
     song_row = cursor.fetchall()
+    print("Fetched songs: ", song_row)
     conn.close()
     if song_row:
         song_mapped = []
@@ -163,7 +116,11 @@ def get_song_by_name_and_artist(song_name, artist_name: Optional[str] = None, mo
                     if len(song_mapped) > 5:
                         break
         for songen in song_row:
-            if not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
+            if artist_name == None and not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() and  drop_accents(existing_song.artist).lower() == drop_accents(songen[3]).lower() for existing_song in song_mapped):
+                song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
+                if len(song_mapped) > 5:
+                    break
+            elif artist_name != None and not any(drop_accents(existing_song.name).lower() == drop_accents(songen[1]).lower() for existing_song in song_mapped):
                 song_mapped.append(song.Song(songen[0], songen[1], songen[2], songen[3], songen[4]))
                 if len(song_mapped) > 5:
                     break
@@ -219,6 +176,26 @@ def get_albums_by_artist(artist_name):
     else:
         return []
 
+def get_songs_by_artist(artist_name):
+    print("Getting songs by artist", artist_name)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT *
+        FROM song
+        JOIN album ON song.album_id = album.id
+        JOIN artist ON album.artist_id = artist.id
+        WHERE LOWER(artist.name) = LOWER(?)
+    ''', (artist_name,))
+    songs = cursor.fetchall()
+    songs_by_artist = []
+
+    if len(songs) > 0:
+        for song_row in songs:
+            songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+            songs_by_artist.append(songMapped)
+    print("touple error not here")
+    return songs_by_artist
 
 def get_albums_by_song(song_name):
     conn = get_db_connection()
@@ -271,34 +248,6 @@ def get_artist_by_song_name(song_name):
 def normalize_song_name(song_name):
     return re.sub(r"[^\w\s]", "", song_name.lower())
 
-def get_songs_by_artist(artist_name):
-    print("Getting songs by artist", artist_name)
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT *
-        FROM song
-        JOIN album ON song.album_id = album.id
-        JOIN artist ON album.artist_id = artist.id
-        WHERE LOWER(artist.name) = LOWER(?)
-    ''', (artist_name,))
-    songs = cursor.fetchall()
-
-    seen_song_names = set()
-    songs_by_artist = []
-
-    if len(songs) > 0:
-        for song_row in songs:
-            song_name = song_row[1]
-            normalized_name = normalize_song_name(song_name)
-            if normalized_name not in seen_song_names:
-                seen_song_names.add(normalized_name)
-
-                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
-                songs_by_artist.append(songMapped)
-    print("touple error not here")
-    return songs_by_artist
-
 def get_songs_by_genre(genre):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -309,19 +258,12 @@ def get_songs_by_genre(genre):
         WHERE LOWER(album.genre) = LOWER(?)
     ''', (genre,))
     songs = cursor.fetchall()
-
-    seen_song_names = set()
     songs_by_genre = []
-
     if len(songs) > 0:
         for song_row in songs:
             song_name = song_row[1]
-            normalized_name = normalize_song_name(song_name)
-            if normalized_name not in seen_song_names:
-                seen_song_names.add(normalized_name)
-
-                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
-                songs_by_genre.append(songMapped)
+            songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+            songs_by_genre.append(songMapped)
     return songs_by_genre
 
 def get_songs_by_year(year):
@@ -334,32 +276,22 @@ def get_songs_by_year(year):
         WHERE album.release_year = ?
     ''', (year,))
     songs = cursor.fetchall()
-
-    seen_song_names = set()
     songs_by_year = []
     if len(songs) > 0:
         for song_row in songs:
-            song_name = song_row[1]
-            normalized_name = normalize_song_name(song_name)
-            if normalized_name not in seen_song_names:
-                seen_song_names.add(normalized_name)
-
-                songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
-                songs_by_year.append(songMapped)
+            songMapped = song.Song(song_row[0], song_row[1], song_row[2], song_row[3], song_row[4])
+            songs_by_year.append(songMapped)
     return songs_by_year
 
 def populate_playlist():
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute('''
         SELECT * FROM song
         ORDER BY RANDOM()
         LIMIT 10
     ''')
-
     random_songs = cursor.fetchall()
-
     listen = []
     if len(random_songs) > 0:
         for song_row in random_songs:
@@ -367,7 +299,6 @@ def populate_playlist():
             listen.append(songMapped)
         return listen
     return None
-
 
 def add_to_database(results, conn):
     cursor = conn.cursor()

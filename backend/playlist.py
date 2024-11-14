@@ -22,26 +22,26 @@ class Playlist:
             return False, song
         
     def add_song(self, song_name, artist_name):
-        song = database.get_song_by_name(song_name, artist_name)
-        if song:
-            if song not in self.songs:
-                self.songs.append(song)
-                return True, song
+        songs = database.get_song_by_name_and_artist(song_name, artist_name)
+        if len(songs) > 0:
+            if songs[0] not in self.songs:
+                self.songs.append(songs[0])
+                return True, songs[0]
             else:
-                return False, song
+                return False, songs[0]
         else:
-            return False, song
+            return False, songs[0]
         
     def remove_song(self, song_name, artist_name):
-        song = database.get_song_by_name(song_name, artist_name)
-        if song:
-            if song in self.songs:
-                self.songs.remove(song)
-                return True, song
+        songs = database.get_song_by_name_and_artist(song_name, artist_name)
+        if songs:
+            if songs[0] in self.songs:
+                self.songs.remove(songs[0])
+                return True, songs[0]
             else:
-                return False, song
+                return False, songs[0]
         else:
-            return False, song
+            return False, songs[0]
     
     def view_playlist(self):
         """View the details of all songs in the playlist."""
